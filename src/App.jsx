@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -24,39 +24,101 @@ import {
 import "./App.css";
 
 const analyticsData = {
-  Revenue: [
-    { date: "Aug 10", value: 42000 },
-    { date: "Aug 15", value: 48000 },
-    { date: "Aug 20", value: 53000 },
-    { date: "Aug 25", value: 62000 },
-    { date: "Aug 30", value: 71000 },
-    { date: "Sep 5", value: 79000 },
-    { date: "Sep 9", value: 84250 },
-  ],
-  Users: [
-    { date: "Aug 10", value: 7200 },
-    { date: "Aug 15", value: 8100 },
-    { date: "Aug 20", value: 8800 },
-    { date: "Aug 25", value: 9600 },
-    { date: "Aug 30", value: 10500 },
-    { date: "Sep 5", value: 11700 },
-    { date: "Sep 9", value: 12540 },
-  ],
-  Conversions: [
-    { date: "Aug 10", value: 3200 },
-    { date: "Aug 15", value: 3600 },
-    { date: "Aug 20", value: 3900 },
-    { date: "Aug 25", value: 4400 },
-    { date: "Aug 30", value: 5100 },
-    { date: "Sep 5", value: 5900 },
-    { date: "Sep 9", value: 6840 },
-  ],
+  "7 Days": {
+    Revenue: [
+      { date: "Sep 3", value: 72000 },
+      { date: "Sep 4", value: 75500 },
+      { date: "Sep 5", value: 79000 },
+      { date: "Sep 6", value: 80500 },
+      { date: "Sep 7", value: 82000 },
+      { date: "Sep 8", value: 83500 },
+      { date: "Sep 9", value: 84250 },
+    ],
+    Users: [
+      { date: "Sep 3", value: 10800 },
+      { date: "Sep 4", value: 11200 },
+      { date: "Sep 5", value: 11700 },
+      { date: "Sep 6", value: 11900 },
+      { date: "Sep 7", value: 12100 },
+      { date: "Sep 8", value: 12350 },
+      { date: "Sep 9", value: 12540 },
+    ],
+    Conversions: [
+      { date: "Sep 3", value: 5400 },
+      { date: "Sep 4", value: 5600 },
+      { date: "Sep 5", value: 5900 },
+      { date: "Sep 6", value: 6100 },
+      { date: "Sep 7", value: 6300 },
+      { date: "Sep 8", value: 6600 },
+      { date: "Sep 9", value: 6840 },
+    ],
+  },
+
+  "30 Days": {
+    Revenue: [
+      { date: "Aug 10", value: 42000 },
+      { date: "Aug 15", value: 48000 },
+      { date: "Aug 20", value: 53000 },
+      { date: "Aug 25", value: 62000 },
+      { date: "Aug 30", value: 71000 },
+      { date: "Sep 5", value: 79000 },
+      { date: "Sep 9", value: 84250 },
+    ],
+    Users: [
+      { date: "Aug 10", value: 7200 },
+      { date: "Aug 15", value: 8100 },
+      { date: "Aug 20", value: 8800 },
+      { date: "Aug 25", value: 9600 },
+      { date: "Aug 30", value: 10500 },
+      { date: "Sep 5", value: 11700 },
+      { date: "Sep 9", value: 12540 },
+    ],
+    Conversions: [
+      { date: "Aug 10", value: 3200 },
+      { date: "Aug 15", value: 3600 },
+      { date: "Aug 20", value: 3900 },
+      { date: "Aug 25", value: 4400 },
+      { date: "Aug 30", value: 5100 },
+      { date: "Sep 5", value: 5900 },
+      { date: "Sep 9", value: 6840 },
+    ],
+  },
+
+  "90 Days": {
+    Revenue: [
+      { date: "Jun 12", value: 28000 },
+      { date: "Jun 25", value: 34000 },
+      { date: "Jul 8", value: 41000 },
+      { date: "Jul 21", value: 47000 },
+      { date: "Aug 3", value: 56000 },
+      { date: "Aug 20", value: 70000 },
+      { date: "Sep 9", value: 84250 },
+    ],
+    Users: [
+      { date: "Jun 12", value: 4300 },
+      { date: "Jun 25", value: 5200 },
+      { date: "Jul 8", value: 6500 },
+      { date: "Jul 21", value: 7300 },
+      { date: "Aug 3", value: 8500 },
+      { date: "Aug 20", value: 10800 },
+      { date: "Sep 9", value: 12540 },
+    ],
+    Conversions: [
+      { date: "Jun 12", value: 1800 },
+      { date: "Jun 25", value: 2200 },
+      { date: "Jul 8", value: 2800 },
+      { date: "Jul 21", value: 3400 },
+      { date: "Aug 3", value: 4100 },
+      { date: "Aug 20", value: 5200 },
+      { date: "Sep 9", value: 6840 },
+    ],
+  },
 };
 
 function App() {
-  const [metric, setMetric] = useState("Revenue");
+ const [dateRange, setDateRange] = useState("30 Days");
 
-  const currentData = analyticsData[metric];
+const currentData = analyticsData[dateRange][metric];
 
   return (
     <div className="app">
@@ -158,9 +220,15 @@ function App() {
               </p>
             </div>
 
-            <button className="date-button">
-              Last 30 days ▾
-            </button>
+            <select
+  className="date-button"
+  value={dateRange}
+  onChange={(e) => setDateRange(e.target.value)}
+>
+  <option>7 Days</option>
+  <option>30 Days</option>
+  <option>90 Days</option>
+</select>
           </div>
 
           <div className="stats-grid">
