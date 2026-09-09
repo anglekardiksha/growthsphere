@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -8,16 +9,57 @@ import {
   Bell,
   Search,
   ArrowUpRight,
-  ArrowDownRight,
   Activity,
   Menu,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import "./App.css";
 
+const analyticsData = {
+  Revenue: [
+    { date: "Aug 10", value: 42000 },
+    { date: "Aug 15", value: 48000 },
+    { date: "Aug 20", value: 53000 },
+    { date: "Aug 25", value: 62000 },
+    { date: "Aug 30", value: 71000 },
+    { date: "Sep 5", value: 79000 },
+    { date: "Sep 9", value: 84250 },
+  ],
+  Users: [
+    { date: "Aug 10", value: 7200 },
+    { date: "Aug 15", value: 8100 },
+    { date: "Aug 20", value: 8800 },
+    { date: "Aug 25", value: 9600 },
+    { date: "Aug 30", value: 10500 },
+    { date: "Sep 5", value: 11700 },
+    { date: "Sep 9", value: 12540 },
+  ],
+  Conversions: [
+    { date: "Aug 10", value: 3200 },
+    { date: "Aug 15", value: 3600 },
+    { date: "Aug 20", value: 3900 },
+    { date: "Aug 25", value: 4400 },
+    { date: "Aug 30", value: 5100 },
+    { date: "Sep 5", value: 5900 },
+    { date: "Sep 9", value: 6840 },
+  ],
+};
+
 function App() {
+  const [metric, setMetric] = useState("Revenue");
+
+  const currentData = analyticsData[metric];
+
   return (
     <div className="app">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="logo">
           <div className="logo-icon">G</div>
@@ -85,9 +127,7 @@ function App() {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="main">
-        {/* Header */}
         <header className="header">
           <div className="mobile-menu">
             <Menu size={22} />
@@ -108,7 +148,6 @@ function App() {
           </div>
         </header>
 
-        {/* Content */}
         <section className="content">
           <div className="welcome">
             <div>
@@ -124,13 +163,11 @@ function App() {
             </button>
           </div>
 
-          {/* Stats */}
           <div className="stats-grid">
             <StatCard
               title="Total Revenue"
               value="₹84,250"
               change="+12.5%"
-              positive
               icon={<TrendingUp size={20} />}
             />
 
@@ -138,7 +175,6 @@ function App() {
               title="Active Users"
               value="12,540"
               change="+8.2%"
-              positive
               icon={<Users size={20} />}
             />
 
@@ -146,7 +182,6 @@ function App() {
               title="Conversion Rate"
               value="6.84%"
               change="+2.4%"
-              positive
               icon={<Target size={20} />}
             />
 
@@ -154,51 +189,34 @@ function App() {
               title="Bounce Rate"
               value="32.8%"
               change="-4.1%"
-              positive
               icon={<Activity size={20} />}
             />
           </div>
 
-          {/* Charts */}
           <div className="dashboard-grid">
             <div className="card revenue-card">
               <div className="card-header">
                 <div>
                   <h2>Growth Overview</h2>
-                  <p>Revenue performance over time</p>
+                  <p>{metric} performance over time</p>
                 </div>
 
-                <select>
+                <select
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value)}
+                >
                   <option>Revenue</option>
                   <option>Users</option>
                   <option>Conversions</option>
                 </select>
               </div>
 
-              <div className="chart">
-                <div className="y-labels">
-                  <span>100K</span>
-                  <span>75K</span>
-                  <span>50K</span>
-                  <span>25K</span>
-                  <span>0</span>
-                </div>
-
-                <div className="chart-area">
-                  <div className="grid-line one"></div>
-                  <div className="grid-line two"></div>
-                  <div className="grid-line three"></div>
-                  <div className="grid-line four"></div>
-                  <div className="grid-line five"></div>
-
-                  <svg
-                    viewBox="0 0 700 260"
-                    preserveAspectRatio="none"
-                    className="growth-line"
-                  >
+              <div className="real-chart">
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={currentData}>
                     <defs>
                       <linearGradient
-                        id="areaGradient"
+                        id="growthGradient"
                         x1="0"
                         y1="0"
                         x2="0"
@@ -207,59 +225,65 @@ function App() {
                         <stop
                           offset="0%"
                           stopColor="#6366f1"
-                          stopOpacity="0.25"
+                          stopOpacity={0.25}
                         />
                         <stop
                           offset="100%"
                           stopColor="#6366f1"
-                          stopOpacity="0"
+                          stopOpacity={0}
                         />
                       </linearGradient>
                     </defs>
 
-                    <path
-                      d="M0 220
-                      C45 205 55 185 100 190
-                      C145 195 150 155 200 165
-                      C245 175 255 125 300 135
-                      C345 145 360 105 400 115
-                      C445 125 455 75 500 90
-                      C545 105 565 50 610 65
-                      C650 78 675 35 700 45
-                      L700 260 L0 260 Z"
-                      fill="url(#areaGradient)"
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#eeeeF3"
                     />
 
-                    <path
-                      d="M0 220
-                      C45 205 55 185 100 190
-                      C145 195 150 155 200 165
-                      C245 175 255 125 300 135
-                      C345 145 360 105 400 115
-                      C445 125 455 75 500 90
-                      C545 105 565 50 610 65
-                      C650 78 675 35 700 45"
-                      fill="none"
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "#a1a1aa" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#a1a1aa" }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) =>
+                        metric === "Revenue"
+                          ? `₹${value / 1000}K`
+                          : `${value / 1000}K`
+                      }
+                    />
+
+                    <Tooltip
+                      formatter={(value) =>
+                        metric === "Revenue"
+                          ? [`₹${Number(value).toLocaleString()}`, metric]
+                          : [Number(value).toLocaleString(), metric]
+                      }
+                      contentStyle={{
+                        borderRadius: "10px",
+                        border: "1px solid #e5e5eb",
+                        fontSize: "11px",
+                      }}
+                    />
+
+                    <Area
+                      type="monotone"
+                      dataKey="value"
                       stroke="#6366f1"
-                      strokeWidth="4"
-                      strokeLinecap="round"
+                      strokeWidth={3}
+                      fill="url(#growthGradient)"
                     />
-                  </svg>
-
-                  <div className="x-labels">
-                    <span>Aug 10</span>
-                    <span>Aug 15</span>
-                    <span>Aug 20</span>
-                    <span>Aug 25</span>
-                    <span>Aug 30</span>
-                    <span>Sep 5</span>
-                    <span>Sep 9</span>
-                  </div>
-                </div>
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Goals */}
             <div className="card goals-card">
               <div className="card-header">
                 <div>
@@ -300,7 +324,6 @@ function App() {
             </div>
           </div>
 
-          {/* Bottom cards */}
           <div className="bottom-grid">
             <div className="card">
               <div className="card-header">
@@ -317,7 +340,6 @@ function App() {
                 title="Revenue increased"
                 description="Monthly revenue crossed ₹80K"
                 time="12 min ago"
-                positive
               />
 
               <ActivityRow
@@ -325,7 +347,6 @@ function App() {
                 title="New customers"
                 description="128 new customers this week"
                 time="1 hr ago"
-                positive
               />
 
               <ActivityRow
@@ -333,7 +354,6 @@ function App() {
                 title="Bounce rate improved"
                 description="Website bounce rate dropped by 4.1%"
                 time="3 hrs ago"
-                positive
               />
 
               <ActivityRow
@@ -352,39 +372,25 @@ function App() {
                 </div>
               </div>
 
-              <div className="performance">
-                <div className="performance-row">
-                  <span>Organic Traffic</span>
-                  <strong>78%</strong>
-                </div>
-                <div className="progress">
-                  <div style={{ width: "78%" }}></div>
-                </div>
+              <Performance
+                name="Organic Traffic"
+                percentage={78}
+              />
 
-                <div className="performance-row">
-                  <span>Paid Traffic</span>
-                  <strong>62%</strong>
-                </div>
-                <div className="progress">
-                  <div style={{ width: "62%" }}></div>
-                </div>
+              <Performance
+                name="Paid Traffic"
+                percentage={62}
+              />
 
-                <div className="performance-row">
-                  <span>Social Media</span>
-                  <strong>86%</strong>
-                </div>
-                <div className="progress">
-                  <div style={{ width: "86%" }}></div>
-                </div>
+              <Performance
+                name="Social Media"
+                percentage={86}
+              />
 
-                <div className="performance-row">
-                  <span>Email</span>
-                  <strong>71%</strong>
-                </div>
-                <div className="progress">
-                  <div style={{ width: "71%" }}></div>
-                </div>
-              </div>
+              <Performance
+                name="Email"
+                percentage={71}
+              />
             </div>
           </div>
         </section>
@@ -393,18 +399,14 @@ function App() {
   );
 }
 
-function StatCard({ title, value, change, positive, icon }) {
+function StatCard({ title, value, change, icon }) {
   return (
     <div className="stat-card">
       <div className="stat-top">
         <div className="stat-icon">{icon}</div>
 
-        <span className={`change ${positive ? "positive" : "negative"}`}>
-          {positive ? (
-            <ArrowUpRight size={14} />
-          ) : (
-            <ArrowDownRight size={14} />
-          )}
+        <span className="change positive">
+          <ArrowUpRight size={14} />
           {change}
         </span>
       </div>
@@ -434,10 +436,10 @@ function Goal({ name, current, target, percentage }) {
   );
 }
 
-function ActivityRow({ icon, title, description, time, positive }) {
+function ActivityRow({ icon, title, description, time }) {
   return (
     <div className="activity-row">
-      <div className={`activity-icon ${positive ? "positive-bg" : ""}`}>
+      <div className="activity-icon positive-bg">
         {icon}
       </div>
 
@@ -448,6 +450,21 @@ function ActivityRow({ icon, title, description, time, positive }) {
 
       <time>{time}</time>
     </div>
+  );
+}
+
+function Performance({ name, percentage }) {
+  return (
+    <>
+      <div className="performance-row">
+        <span>{name}</span>
+        <strong>{percentage}%</strong>
+      </div>
+
+      <div className="progress">
+        <div style={{ width: `${percentage}%` }}></div>
+      </div>
+    </>
   );
 }
 
