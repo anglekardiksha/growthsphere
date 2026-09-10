@@ -6,12 +6,10 @@ import {
   Users,
   Target,
   BarChart3,
-  Bell,
   Search,
   ArrowUpRight,
   ArrowDownRight,
   Activity,
-  Menu,
   Download,
   FileText,
   Filter,
@@ -22,8 +20,9 @@ import {
   Package,
   Lightbulb,
   Gauge,
-  MousePointerClick,
   Globe,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 import {
@@ -38,7 +37,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from "recharts";
 
 import growthData from "./data/growthData.csv?raw";
@@ -50,71 +48,62 @@ import "./App.css";
 
 const parsedGrowthData = growthData
   .trim()
-  .split(/\r?\n/)
-  .map((row) => row.trim())
-  .filter(Boolean)
-  .filter((row) => !row.startsWith("date,"))
+  .split("\n")
+  .slice(1)
   .map((row) => {
-    const [
-      date,
-      region,
-      category,
-      revenue,
-      users,
-      new_customers,
-      conversions,
-      traffic,
-      bounce_rate,
-    ] = row.split(",");
+    const values = row.split(",");
 
     return {
-      date: date.trim(),
-      region: region.trim(),
-      category: category.trim(),
-      revenue: Number(revenue),
-      users: Number(users),
-      new_customers: Number(new_customers),
-      conversions: Number(conversions),
-      traffic: Number(traffic),
-      bounce_rate: Number(bounce_rate),
+      date: values[0],
+      region: values[1],
+      category: values[2],
+      revenue: Number(values[3]) || 0,
+      users: Number(values[4]) || 0,
+      new_customers: Number(values[5]) || 0,
+      conversions: Number(values[6]) || 0,
+      traffic: Number(values[7]) || 0,
+      bounce_rate: Number(values[8]) || 0,
     };
   });
 
 /* =========================================================
-   HELPERS
+   HELPER FUNCTIONS
 ========================================================= */
 
 const formatCurrency = (value) =>
-  `₹${Number(value || 0).toLocaleString("en-IN")}`;
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
 
 const formatNumber = (value) =>
-  Number(value || 0).toLocaleString("en-IN");
+  new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 0,
+  }).format(value);
 
 const formatPercent = (value) =>
-  `${Number(value || 0).toFixed(1)}%`;
+  `${Number(value).toFixed(1)}%`;
 
 const calculateChange = (current, previous) => {
-  if (!previous) return 0;
-
+  if (!previous) return current ? 100 : 0;
   return ((current - previous) / previous) * 100;
 };
 
 const sumBy = (data, key) =>
-  data.reduce(
-    (total, item) => total + Number(item[key] || 0),
-    0
-  );
+  data.reduce((sum, item) => sum + Number(item[key] || 0), 0);
 
 const averageBy = (data, key) => {
   if (!data.length) return 0;
+  return sumBy(data, key) / data.length;
+};
 
-  return (
-    data.reduce(
-      (total, item) =>
-        total + Number(item[key] || 0),
-      0
-    ) / data.length
-  );
+const getMetricKey = (metric) => {
+  if (metric === "Revenue") return "revenue";
+  if (metric === "Users") return "users";
+  if (metric === "Customers") return "customers";
+  if (metric === "Conversions") return "conversions";
+  return "traffic";
 };
 
 /* =========================================================
@@ -130,111 +119,63 @@ const aggregateByDate = (data) => {
         date: item.date,
         revenue: 0,
         users: 0,
-        new_customers: 0,
+        customers: 0,
         conversions: 0,
         traffic: 0,
-        bounce_rate_total: 0,
-        count: 0,
       };
     }
 
     grouped[item.date].revenue += item.revenue;
     grouped[item.date].users += item.users;
-    grouped[item.date].new_customers +=
-      item.new_customers;
-    grouped[item.date].conversions +=
-      item.conversions;
+    grouped[item.date].customers += item.new_customers;
+    grouped[item.date].conversions += item.conversions;
     grouped[item.date].traffic += item.traffic;
-    grouped[item.date].bounce_rate_total +=
-      item.bounce_rate;
-    grouped[item.date].count += 1;
   });
 
-  return Object.values(grouped)
-    .map((item) => ({
-      ...item,
-      bounce_rate:
-        item.bounce_rate_total / item.count,
-    }))
-    .sort(
-      (a, b) =>
-        new Date(a.date) -
-        new Date(b.date)
-    );
+  return Object.values(grouped).sort(
+    (a, b) => new Date(a.date) - new Date(b.date)
+  );
 };
 
 const aggregateBy = (data, key) => {
   const grouped = {};
 
   data.forEach((item) => {
-    const group = item[key];
+    const name = item[key];
 
-    if (!grouped[group]) {
-      grouped[group] = {
-        name: group,
+    if (!grouped[name]) {
+      grouped[name] = {
+        name,
         revenue: 0,
         users: 0,
-        new_customers: 0,
+        customers: 0,
         conversions: 0,
         traffic: 0,
-        bounce_rate_total: 0,
-        count: 0,
       };
     }
 
-    grouped[group].revenue += item.revenue;
-    grouped[group].users += item.users;
-    grouped[group].new_customers +=
-      item.new_customers;
-    grouped[group].conversions +=
-      item.conversions;
-    grouped[group].traffic += item.traffic;
-    grouped[group].bounce_rate_total +=
-      item.bounce_rate;
-    grouped[group].count += 1;
+    grouped[name].revenue += item.revenue;
+    grouped[name].users += item.users;
+    grouped[name].customers += item.new_customers;
+    grouped[name].conversions += item.conversions;
+    grouped[name].traffic += item.traffic;
   });
 
-  return Object.values(grouped)
-    .map((item) => ({
-      ...item,
-      bounce_rate:
-        item.bounce_rate_total /
-        item.count,
-
-      conversion_rate:
-        item.traffic > 0
-          ? (item.conversions /
-              item.traffic) *
-            100
-          : 0,
-    }))
-    .sort(
-      (a, b) => b.revenue - a.revenue
-    );
+  return Object.values(grouped);
 };
 
 /* =========================================================
-   APP
+   MAIN APP
 ========================================================= */
 
-function App() {
-  const [page, setPage] =
-    useState("Dashboard");
-
-  const [metric, setMetric] =
-    useState("Revenue");
-
-  const [dateRange, setDateRange] =
-    useState("30 Days");
-
-  const [regionFilter, setRegionFilter] =
-    useState("All Regions");
-
-  const [categoryFilter, setCategoryFilter] =
-    useState("All Categories");
-
-  const [search, setSearch] =
-    useState("");
+export default function App() {
+  const [page, setPage] = useState("Dashboard");
+  const [metric, setMetric] = useState("Revenue");
+  const [dateRange, setDateRange] = useState("30 Days");
+  const [regionFilter, setRegionFilter] = useState("All Regions");
+  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [search, setSearch] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
 
   /* =======================================================
      FILTER OPTIONS
@@ -243,11 +184,7 @@ function App() {
   const regions = useMemo(
     () => [
       "All Regions",
-      ...new Set(
-        parsedGrowthData.map(
-          (item) => item.region
-        )
-      ),
+      ...new Set(parsedGrowthData.map((item) => item.region)),
     ],
     []
   );
@@ -255,105 +192,70 @@ function App() {
   const categories = useMemo(
     () => [
       "All Categories",
-      ...new Set(
-        parsedGrowthData.map(
-          (item) => item.category
-        )
-      ),
+      ...new Set(parsedGrowthData.map((item) => item.category)),
     ],
     []
   );
 
-  /* =======================================================
-     DATE RANGE
-  ======================================================= */
-
-  const rangeDays = {
-    "7 Days": 7,
-    "30 Days": 30,
-    "90 Days": 90,
-  }[dateRange];
-
   const latestDate = useMemo(() => {
-    return new Date(
-      Math.max(
-        ...parsedGrowthData.map(
-          (item) =>
-            new Date(item.date).getTime()
-        )
-      )
-    );
+    if (!parsedGrowthData.length) return null;
+
+    return parsedGrowthData.reduce((latest, item) => {
+      return new Date(item.date) > new Date(latest)
+        ? item.date
+        : latest;
+    }, parsedGrowthData[0].date);
   }, []);
 
+  /* =======================================================
+     DATE RANGE FILTER
+  ======================================================= */
+
   const selectedData = useMemo(() => {
-    const cutoff = new Date(
-      latestDate
-    );
+    if (!latestDate) return [];
 
-    cutoff.setDate(
-      cutoff.getDate() -
-        rangeDays +
-        1
-    );
+    const latest = new Date(latestDate);
 
-    return parsedGrowthData.filter(
-      (item) => {
-        const itemDate = new Date(
-          item.date
-        );
+    let days = 30;
 
-        return (
-          itemDate >= cutoff &&
-          itemDate <= latestDate
-        );
-      }
-    );
-  }, [rangeDays, latestDate]);
+    if (dateRange === "7 Days") days = 7;
+    if (dateRange === "90 Days") days = 90;
+
+    const startDate = new Date(latest);
+    startDate.setDate(startDate.getDate() - days + 1);
+
+    return parsedGrowthData.filter((item) => {
+      const date = new Date(item.date);
+
+      return date >= startDate && date <= latest;
+    });
+  }, [dateRange, latestDate]);
 
   /* =======================================================
-     FILTERED DATA
+     MAIN FILTERED DATA
   ======================================================= */
 
   const filteredData = useMemo(() => {
-    return selectedData.filter(
-      (item) => {
-        const regionMatch =
-          regionFilter ===
-            "All Regions" ||
-          item.region ===
-            regionFilter;
+    return selectedData.filter((item) => {
+      const matchesRegion =
+        regionFilter === "All Regions" ||
+        item.region === regionFilter;
 
-        const categoryMatch =
-          categoryFilter ===
-            "All Categories" ||
-          item.category ===
-            categoryFilter;
+      const matchesCategory =
+        categoryFilter === "All Categories" ||
+        item.category === categoryFilter;
 
-        const searchMatch =
-          !search ||
-          item.date
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            ) ||
-          item.region
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            ) ||
-          item.category
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            );
+      const matchesSearch =
+        !search ||
+        item.region.toLowerCase().includes(search.toLowerCase()) ||
+        item.category.toLowerCase().includes(search.toLowerCase());
 
-        return (
-          regionMatch &&
-          categoryMatch &&
-          searchMatch
-        );
-      }
-    );
+      return (
+        matchesRegion &&
+        matchesCategory &&
+        matchesSearch
+      );
+    });
   }, [
     selectedData,
     regionFilter,
@@ -365,36 +267,15 @@ function App() {
      KPI CALCULATIONS
   ======================================================= */
 
-  const totalRevenue = sumBy(
-    filteredData,
-    "revenue"
-  );
-
-  const activeUsers = sumBy(
-    filteredData,
-    "users"
-  );
-
-  const totalTraffic = sumBy(
-    filteredData,
-    "traffic"
-  );
-
-  const totalConversions = sumBy(
-    filteredData,
-    "conversions"
-  );
-
-  const totalCustomers = sumBy(
-    filteredData,
-    "new_customers"
-  );
+  const totalRevenue = sumBy(filteredData, "revenue");
+  const activeUsers = sumBy(filteredData, "users");
+  const totalTraffic = sumBy(filteredData, "traffic");
+  const totalConversions = sumBy(filteredData, "conversions");
+  const totalCustomers = sumBy(filteredData, "new_customers");
 
   const conversionRate =
     totalTraffic > 0
-      ? (totalConversions /
-          totalTraffic) *
-        100
+      ? (totalConversions / totalTraffic) * 100
       : 0;
 
   const bounceRate = averageBy(
@@ -402,144 +283,127 @@ function App() {
     "bounce_rate"
   );
 
-  const engagementRate =
-    100 - bounceRate;
+  const engagementRate = Math.max(
+    0,
+    100 - bounceRate
+  );
 
   /* =======================================================
      PREVIOUS PERIOD
   ======================================================= */
 
-  const previousPeriodData =
-    useMemo(() => {
-      const cutoffEnd = new Date(
-        latestDate
+  const previousData = useMemo(() => {
+    if (!latestDate) return [];
+
+    const latest = new Date(latestDate);
+
+    let days = 30;
+
+    if (dateRange === "7 Days") days = 7;
+    if (dateRange === "90 Days") days = 90;
+
+    const currentStart = new Date(latest);
+
+    currentStart.setDate(
+      currentStart.getDate() - days + 1
+    );
+
+    const previousEnd = new Date(currentStart);
+
+    previousEnd.setDate(
+      previousEnd.getDate() - 1
+    );
+
+    const previousStart = new Date(previousEnd);
+
+    previousStart.setDate(
+      previousStart.getDate() - days + 1
+    );
+
+    return parsedGrowthData.filter((item) => {
+      const date = new Date(item.date);
+
+      const matchesDate =
+        date >= previousStart &&
+        date <= previousEnd;
+
+      const matchesRegion =
+        regionFilter === "All Regions" ||
+        item.region === regionFilter;
+
+      const matchesCategory =
+        categoryFilter === "All Categories" ||
+        item.category === categoryFilter;
+
+      return (
+        matchesDate &&
+        matchesRegion &&
+        matchesCategory
       );
+    });
+  }, [
+    dateRange,
+    latestDate,
+    regionFilter,
+    categoryFilter,
+  ]);
 
-      cutoffEnd.setDate(
-        cutoffEnd.getDate() -
-          rangeDays
-      );
+  const previousRevenue = sumBy(
+    previousData,
+    "revenue"
+  );
 
-      const cutoffStart =
-        new Date(cutoffEnd);
+  const previousUsers = sumBy(
+    previousData,
+    "users"
+  );
 
-      cutoffStart.setDate(
-        cutoffStart.getDate() -
-          rangeDays +
-          1
-      );
+  const previousCustomers = sumBy(
+    previousData,
+    "new_customers"
+  );
 
-      return parsedGrowthData.filter(
-        (item) => {
-          const itemDate = new Date(
-            item.date
-          );
+  const previousConversions = sumBy(
+    previousData,
+    "conversions"
+  );
 
-          const dateMatch =
-            itemDate >= cutoffStart &&
-            itemDate <= cutoffEnd;
+  const revenueChange = calculateChange(
+    totalRevenue,
+    previousRevenue
+  );
 
-          const regionMatch =
-            regionFilter ===
-              "All Regions" ||
-            item.region ===
-              regionFilter;
+  const usersChange = calculateChange(
+    activeUsers,
+    previousUsers
+  );
 
-          const categoryMatch =
-            categoryFilter ===
-              "All Categories" ||
-            item.category ===
-              categoryFilter;
+  const customersChange = calculateChange(
+    totalCustomers,
+    previousCustomers
+  );
 
-          return (
-            dateMatch &&
-            regionMatch &&
-            categoryMatch
-          );
-        }
-      );
-    }, [
-      latestDate,
-      rangeDays,
-      regionFilter,
-      categoryFilter,
-    ]);
-
-  const previousRevenue =
-    sumBy(
-      previousPeriodData,
-      "revenue"
-    );
-
-  const previousUsers =
-    sumBy(
-      previousPeriodData,
-      "users"
-    );
-
-  const previousCustomers =
-    sumBy(
-      previousPeriodData,
-      "new_customers"
-    );
-
-  const previousConversions =
-    sumBy(
-      previousPeriodData,
-      "conversions"
-    );
-
-  const revenueChange =
-    calculateChange(
-      totalRevenue,
-      previousRevenue
-    );
-
-  const usersChange =
-    calculateChange(
-      activeUsers,
-      previousUsers
-    );
-
-  const customerChange =
-    calculateChange(
-      totalCustomers,
-      previousCustomers
-    );
-
-  const conversionChange =
-    calculateChange(
-      totalConversions,
-      previousConversions
-    );
+  const conversionsChange = calculateChange(
+    totalConversions,
+    previousConversions
+  );
 
   /* =======================================================
      CHART DATA
   ======================================================= */
 
   const dateChartData = useMemo(
-    () =>
-      aggregateByDate(
-        filteredData
-      ),
+    () => aggregateByDate(filteredData),
     [filteredData]
   );
 
   const regionData = useMemo(
-    () =>
-      aggregateBy(
-        filteredData,
-        "region"
-      ),
+    () => aggregateBy(filteredData, "region"),
     [filteredData]
   );
 
   const categoryData = useMemo(
-    () =>
-      aggregateBy(
-        filteredData,
-        "category"
-      ),
+    () => aggregateBy(filteredData, "category"),
     [filteredData]
   );
 
@@ -549,213 +413,136 @@ function App() {
 
   const revenueScore = Math.min(
     100,
-    Math.max(
-      0,
-      50 + revenueChange
-    )
+    Math.max(0, 50 + revenueChange)
   );
 
   const customerScore = Math.min(
     100,
-    Math.max(
-      0,
-      50 + customerChange
-    )
+    Math.max(0, 50 + customersChange)
   );
 
-  const conversionScore =
-    Math.min(
-      100,
-      conversionRate * 3
-    );
+  const conversionScore = Math.min(
+    100,
+    conversionRate * 3
+  );
 
-  const engagementScore =
-    Math.min(
-      100,
-      engagementRate
-    );
+  const engagementScore = Math.min(
+    100,
+    engagementRate
+  );
 
-  const performanceScore = Math.round(
+  const performanceScore =
     revenueScore * 0.3 +
-      customerScore * 0.25 +
-      conversionScore * 0.25 +
-      engagementScore * 0.2
-  );
+    customerScore * 0.25 +
+    conversionScore * 0.25 +
+    engagementScore * 0.2;
 
-  const performanceLabel =
-    performanceScore >= 80
-      ? "Excellent"
-      : performanceScore >= 65
-      ? "Healthy"
-      : performanceScore >= 50
-      ? "Needs Attention"
-      : "At Risk";
+  let performanceLabel = "At Risk";
+
+  if (performanceScore >= 80) {
+    performanceLabel = "Excellent";
+  } else if (performanceScore >= 65) {
+    performanceLabel = "Healthy";
+  } else if (performanceScore >= 50) {
+    performanceLabel = "Needs Attention";
+  }
 
   /* =======================================================
-     TOP / LOW PERFORMERS
+     TOP PERFORMERS
   ======================================================= */
 
-  const topRegion =
-    regionData[0] || null;
+  const topRegion = [...regionData].sort(
+    (a, b) => b.revenue - a.revenue
+  )[0];
 
-  const lowestRegion =
-    regionData.length
-      ? [...regionData].sort(
-          (a, b) =>
-            a.revenue - b.revenue
-        )[0]
-      : null;
+  const lowestRegion = [...regionData].sort(
+    (a, b) => a.revenue - b.revenue
+  )[0];
 
-  const topCategory =
-    categoryData[0] || null;
+  const topCategory = [...categoryData].sort(
+    (a, b) => b.revenue - a.revenue
+  )[0];
 
-  const lowestCategory =
-    categoryData.length
-      ? [...categoryData].sort(
-          (a, b) =>
-            a.revenue - b.revenue
-        )[0]
-      : null;
+  const lowestCategory = [...categoryData].sort(
+    (a, b) => a.revenue - b.revenue
+  )[0];
 
   /* =======================================================
      REVENUE CONTRIBUTION
   ======================================================= */
 
-  const regionContribution =
-    regionData.map((item) => ({
+  const revenueContribution = regionData.map(
+    (item) => ({
       ...item,
-      contribution:
+      percentage:
         totalRevenue > 0
-          ? (item.revenue /
-              totalRevenue) *
-            100
+          ? (item.revenue / totalRevenue) * 100
           : 0,
-    }));
+    })
+  );
 
   /* =======================================================
      INSIGHTS
   ======================================================= */
 
-  const insights = useMemo(() => {
-    if (!filteredData.length) {
-      return [
-        "No data is available for the selected filters.",
-      ];
-    }
+  const insights = [
+    topRegion
+      ? `The strongest region is ${topRegion.name}, contributing ${formatCurrency(
+          topRegion.revenue
+        )} in revenue.`
+      : "No regional data available.",
 
-    const strongestRegion =
-      regionData[0];
+    topCategory
+      ? `${topCategory.name} is currently the strongest-performing category.`
+      : "No category data available.",
 
-    const strongestCategory =
-      categoryData[0];
+    regionData.length
+      ? `${regionData
+          .slice()
+          .sort(
+            (a, b) =>
+              b.conversions / Math.max(b.traffic, 1) -
+              a.conversions / Math.max(a.traffic, 1)
+          )[0].name} has the highest conversion efficiency.`
+      : "Conversion data is unavailable.",
 
-    const highestConversionRegion =
-      [...regionData].sort(
-        (a, b) =>
-          b.conversion_rate -
-          a.conversion_rate
-      )[0];
-
-    const lowestBounceRegion =
-      [...regionData].sort(
-        (a, b) =>
-          a.bounce_rate -
-          b.bounce_rate
-      )[0];
-
-    return [
-      `${strongestRegion.name} is the strongest region by revenue with ${formatCurrency(
-        strongestRegion.revenue
-      )} generated during the selected period.`,
-
-      `${strongestCategory.name} is the top-performing category, contributing ${formatCurrency(
-        strongestCategory.revenue
-      )} in revenue.`,
-
-      `${highestConversionRegion.name} has the highest conversion rate at ${formatPercent(
-        highestConversionRegion.conversion_rate
-      )}.`,
-
-      `${lowestBounceRegion.name} has the lowest average bounce rate at ${formatPercent(
-        lowestBounceRegion.bounce_rate
-      )}, indicating stronger engagement.`,
-    ];
-  }, [
-    filteredData,
-    regionData,
-    categoryData,
-  ]);
+    filteredData.length
+      ? "Use the filters above to identify specific growth opportunities."
+      : "Try changing the filters to view more data.",
+  ];
 
   /* =======================================================
      RECOMMENDATIONS
   ======================================================= */
 
-  const recommendations = useMemo(() => {
-    if (!filteredData.length) {
-      return [
-        "Adjust your filters to generate business recommendations.",
-      ];
-    }
+  const recommendations = [];
 
-    const result = [];
+  if (lowestRegion) {
+    recommendations.push(
+      `Review performance in ${lowestRegion.name} and identify opportunities to improve revenue.`
+    );
+  }
 
-    if (
-      lowestRegion &&
-      topRegion &&
-      lowestRegion.name !==
-        topRegion.name
-    ) {
-      result.push(
-        `Review ${lowestRegion.name}'s performance and identify opportunities to replicate the strategies working in ${topRegion.name}.`
-      );
-    }
+  if (conversionRate < 5) {
+    recommendations.push(
+      "Focus on improving conversion journeys and calls-to-action."
+    );
+  }
 
-    if (
-      conversionRate < 15
-    ) {
-      result.push(
-        "Conversion performance has room for improvement. Consider optimizing landing pages, calls-to-action and customer journeys."
-      );
-    } else {
-      result.push(
-        "Conversion performance is healthy. Continue monitoring high-performing acquisition channels and customer segments."
-      );
-    }
+  if (bounceRate > 50) {
+    recommendations.push(
+      "Investigate high-bounce pages and improve content engagement."
+    );
+  }
 
-    if (bounceRate > 40) {
-      result.push(
-        "The bounce rate is relatively high. Investigate landing-page relevance, page speed and user experience."
-      );
-    } else {
-      result.push(
-        "Engagement is strong based on the current bounce rate. Preserve the experience of high-performing pages."
-      );
-    }
-
-    if (
-      topCategory &&
-      lowestCategory &&
-      topCategory.name !==
-        lowestCategory.name
-    ) {
-      result.push(
-        `${topCategory.name} is outperforming ${lowestCategory.name}. Consider studying its pricing, demand and customer behavior patterns.`
-      );
-    }
-
-    return result.slice(0, 4);
-  }, [
-    filteredData,
-    lowestRegion,
-    topRegion,
-    conversionRate,
-    bounceRate,
-    topCategory,
-    lowestCategory,
-  ]);
+  if (topCategory) {
+    recommendations.push(
+      `Consider expanding successful strategies from ${topCategory.name}.`
+    );
+  }
 
   /* =======================================================
-     EXPORT
+     EXPORT CSV
   ======================================================= */
 
   const exportCSV = () => {
@@ -771,39 +558,32 @@ function App() {
       "Bounce Rate",
     ];
 
-    const rows =
-      filteredData.map((item) => [
-        item.date,
-        item.region,
-        item.category,
-        item.revenue,
-        item.users,
-        item.new_customers,
-        item.conversions,
-        item.traffic,
-        item.bounce_rate,
-      ]);
+    const rows = filteredData.map((item) => [
+      item.date,
+      item.region,
+      item.category,
+      item.revenue,
+      item.users,
+      item.new_customers,
+      item.conversions,
+      item.traffic,
+      item.bounce_rate,
+    ]);
 
     const csv = [
       headers.join(","),
-      ...rows.map((row) =>
-        row.join(",")
-      ),
+      ...rows.map((row) => row.join(",")),
     ].join("\n");
 
-    const blob = new Blob(
-      [csv],
-      { type: "text/csv" }
-    );
+    const blob = new Blob([csv], {
+      type: "text/csv",
+    });
 
-    const url =
-      URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    const link =
-      document.createElement("a");
+    const link = document.createElement("a");
 
     link.href = url;
-
     link.download =
       "growthsphere-filtered-data.csv";
 
@@ -813,90 +593,58 @@ function App() {
   };
 
   /* =======================================================
-     REPORT
+     DOWNLOAD REPORT
   ======================================================= */
 
   const downloadReport = () => {
     const report = `
-GROWTHSPHERE BUSINESS ANALYTICS REPORT
-======================================
+GROWTHSPHERE BUSINESS REPORT
+============================
 
-DATE RANGE
-----------
-${dateRange}
-
-FILTERS
--------
+Date Range: ${dateRange}
 Region: ${regionFilter}
 Category: ${categoryFilter}
 
-EXECUTIVE SUMMARY
------------------
-Performance Score: ${performanceScore}/100
-Business Health: ${performanceLabel}
-
 KEY PERFORMANCE INDICATORS
 --------------------------
-Revenue: ${formatCurrency(totalRevenue)}
-Users: ${formatNumber(activeUsers)}
-Traffic: ${formatNumber(totalTraffic)}
+Total Revenue: ${formatCurrency(totalRevenue)}
+Active Users: ${formatNumber(activeUsers)}
 New Customers: ${formatNumber(totalCustomers)}
 Conversions: ${formatNumber(totalConversions)}
 Conversion Rate: ${formatPercent(conversionRate)}
 Bounce Rate: ${formatPercent(bounceRate)}
 Engagement Rate: ${formatPercent(engagementRate)}
 
-PERFORMANCE CHANGE
-------------------
-Revenue Growth: ${revenueChange.toFixed(1)}%
-User Growth: ${usersChange.toFixed(1)}%
-Customer Growth: ${customerChange.toFixed(1)}%
-Conversion Growth: ${conversionChange.toFixed(1)}%
+PERFORMANCE
+-----------
+Performance Score: ${performanceScore.toFixed(1)}/100
+Status: ${performanceLabel}
 
 TOP PERFORMERS
 --------------
 Top Region: ${topRegion?.name || "N/A"}
 Top Category: ${topCategory?.name || "N/A"}
 
-LOWEST PERFORMERS
------------------
-Lowest Region: ${lowestRegion?.name || "N/A"}
-Lowest Category: ${lowestCategory?.name || "N/A"}
+INSIGHTS
+--------
+${insights.map((item) => `- ${item}`).join("\n")}
 
-BUSINESS INSIGHTS
------------------
-${insights
-  .map(
-    (item, index) =>
-      `${index + 1}. ${item}`
-  )
-  .join("\n")}
-
-BUSINESS RECOMMENDATIONS
-------------------------
+RECOMMENDATIONS
+---------------
 ${recommendations
-  .map(
-    (item, index) =>
-      `${index + 1}. ${item}`
-  )
+  .map((item) => `- ${item}`)
   .join("\n")}
-
-Generated by GrowthSphere Analytics Dashboard.
 `;
 
-    const blob = new Blob(
-      [report],
-      { type: "text/plain" }
-    );
+    const blob = new Blob([report], {
+      type: "text/plain",
+    });
 
-    const url =
-      URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    const link =
-      document.createElement("a");
+    const link = document.createElement("a");
 
     link.href = url;
-
     link.download =
       "growthsphere-business-report.txt";
 
@@ -912,9 +660,7 @@ Generated by GrowthSphere Analytics Dashboard.
   const resetFilters = () => {
     setDateRange("30 Days");
     setRegionFilter("All Regions");
-    setCategoryFilter(
-      "All Categories"
-    );
+    setCategoryFilter("All Categories");
     setSearch("");
   };
 
@@ -950,519 +696,451 @@ Generated by GrowthSphere Analytics Dashboard.
   ];
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${
+        darkMode
+          ? "theme-dark"
+          : "theme-light"
+      }`}
+    >
+
+      {/* =================================================
+          SIDEBAR
+      ================================================= */}
 
       <aside className="sidebar">
 
         <div className="brand">
+
           <div className="brand-logo">
             GS
           </div>
 
-          <div>
+          <div className="brand-text">
             <h2>GrowthSphere</h2>
-            <span>
-              Analytics Platform
-            </span>
+            <span>Analytics Platform</span>
           </div>
+
+        </div>
+
+        <div className="sidebar-label">
+          WORKSPACE
         </div>
 
         <nav className="sidebar-nav">
 
-          {navigation.map(
-            (item) => {
-              const Icon =
-                item.icon;
+          {navigation.map((item) => {
+            const Icon = item.icon;
 
-              return (
-                <button
-                  key={item.name}
-                  className={`nav-item ${
-                    page ===
-                    item.name
-                      ? "active"
-                      : ""
-                  }`}
-                  onClick={() =>
-                    setPage(
-                      item.name
-                    )
-                  }
-                >
-                  <Icon size={19} />
+            return (
+              <button
+                key={item.name}
+                className={`nav-item ${
+                  page === item.name
+                    ? "active"
+                    : ""
+                }`}
+                onClick={() =>
+                  setPage(item.name)
+                }
+              >
+                <Icon size={18} />
 
-                  <span>
-                    {item.name}
-                  </span>
+                <span>
+                  {item.name}
+                </span>
 
-                  {page ===
-                    item.name && (
-                    <ChevronRight
-                      size={16}
-                      className="nav-arrow"
-                    />
-                  )}
-                </button>
-              );
-            }
-          )}
+                {page === item.name && (
+                  <ChevronRight
+                    size={15}
+                    className="nav-arrow"
+                  />
+                )}
+              </button>
+            );
+          })}
 
         </nav>
 
         <div className="sidebar-bottom">
 
-          <button className="nav-item">
-            <Bell size={19} />
-            Notifications
-          </button>
+          <div className="sidebar-mini-card">
 
-          <button className="nav-item">
-            <Menu size={19} />
-            Settings
-          </button>
+            <div className="mini-card-icon">
+              <BarChart3 size={17} />
+            </div>
+
+            <div>
+              <strong>Analytics Ready</strong>
+              <span>Portfolio Dashboard</span>
+            </div>
+
+          </div>
 
           <div className="profile-card">
+
             <div className="avatar">
               DA
             </div>
 
             <div>
-              <strong>
-                Data Analyst
-              </strong>
-
-              <span>
-                Portfolio Project
-              </span>
+              <strong>Data Analyst</strong>
+              <span>Portfolio Project</span>
             </div>
+
           </div>
 
         </div>
 
       </aside>
 
+      {/* =================================================
+          MAIN CONTENT
+      ================================================= */}
+
       <main className="main-content">
+
+        {/* TOPBAR */}
 
         <header className="topbar">
 
           <div className="page-heading">
-            <span>
-              Analytics
-            </span>
+
+            <div className="breadcrumb">
+              GrowthSphere
+              <ChevronRight size={13} />
+              {page}
+            </div>
 
             <h1>{page}</h1>
+
+            <p>
+              Monitor your business growth and
+              performance
+            </p>
+
           </div>
 
           <div className="topbar-actions">
 
-            <button
-              className="secondary-button"
-              onClick={
-                downloadReport
-              }
-            >
-              <FileText size={17} />
-              Report
-            </button>
+            <div className="theme-label">
+              <span className="theme-dot"></span>
+
+              {darkMode
+                ? "Dark mode"
+                : "Light mode"}
+            </div>
 
             <button
-              className="primary-button"
-              onClick={exportCSV}
+              className="theme-toggle"
+              onClick={() =>
+                setDarkMode(
+                  (value) => !value
+                )
+              }
+              title={
+                darkMode
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+              aria-label={
+                darkMode
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+              aria-pressed={darkMode}
             >
-              <Download size={17} />
-              Export
+              {darkMode ? (
+                <Sun size={18} />
+              ) : (
+                <Moon size={18} />
+              )}
             </button>
 
           </div>
 
         </header>
 
+        {/* FILTER PANEL */}
+
         <section className="filter-panel">
 
           <div className="filter-title">
-            <Filter size={18} />
-            <strong>
-              Analytics Filters
-            </strong>
+
+            <div className="filter-icon">
+              <Filter size={17} />
+            </div>
+
+            <div>
+              <strong>Filters</strong>
+              <span>Refine dashboard data</span>
+            </div>
+
           </div>
 
           <div className="filter-group">
 
-            <label>
-              Date Range
-            </label>
+            <label>Date Range</label>
 
             <select
               value={dateRange}
-              onChange={(event) =>
+              onChange={(e) =>
                 setDateRange(
-                  event.target.value
+                  e.target.value
                 )
               }
             >
-              <option>
-                7 Days
-              </option>
-
-              <option>
-                30 Days
-              </option>
-
-              <option>
-                90 Days
-              </option>
+              <option>7 Days</option>
+              <option>30 Days</option>
+              <option>90 Days</option>
             </select>
 
           </div>
 
           <div className="filter-group">
 
-            <label>
-              Region
-            </label>
+            <label>Region</label>
 
             <select
               value={regionFilter}
-              onChange={(event) =>
+              onChange={(e) =>
                 setRegionFilter(
-                  event.target.value
+                  e.target.value
                 )
               }
             >
-              {regions.map(
-                (region) => (
-                  <option
-                    key={region}
-                    value={region}
-                  >
-                    {region}
-                  </option>
-                )
-              )}
+              {regions.map((region) => (
+                <option
+                  key={region}
+                  value={region}
+                >
+                  {region}
+                </option>
+              ))}
             </select>
 
           </div>
 
           <div className="filter-group">
 
-            <label>
-              Category
-            </label>
+            <label>Category</label>
 
             <select
-              value={
-                categoryFilter
-              }
-              onChange={(event) =>
+              value={categoryFilter}
+              onChange={(e) =>
                 setCategoryFilter(
-                  event.target.value
+                  e.target.value
                 )
               }
             >
-              {categories.map(
-                (category) => (
-                  <option
-                    key={category}
-                    value={category}
-                  >
-                    {category}
-                  </option>
-                )
-              )}
+              {categories.map((category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category}
+                </option>
+              ))}
             </select>
 
           </div>
 
           <button
             className="reset-button"
-            onClick={
-              resetFilters
-            }
+            onClick={resetFilters}
           >
-            <RotateCcw
-              size={16}
-            />
+            <RotateCcw size={15} />
             Reset
           </button>
 
         </section>
 
-        {page ===
-          "Dashboard" && (
-          <DashboardPage
-            totalRevenue={
-              totalRevenue
-            }
-            activeUsers={
-              activeUsers
-            }
-            totalTraffic={
-              totalTraffic
-            }
-            totalCustomers={
-              totalCustomers
-            }
-            conversionRate={
-              conversionRate
-            }
-            bounceRate={
-              bounceRate
-            }
-            revenueChange={
-              revenueChange
-            }
-            usersChange={
-              usersChange
-            }
-            customerChange={
-              customerChange
-            }
-            conversionChange={
-              conversionChange
-            }
-            dateChartData={
-              dateChartData
-            }
-            metric={metric}
-            setMetric={
-              setMetric
-            }
-            insights={insights}
-            recommendations={
-              recommendations
-            }
-            regionData={
-              regionData
-            }
-            categoryData={
-              categoryData
-            }
-            regionContribution={
-              regionContribution
-            }
-            performanceScore={
-              performanceScore
-            }
-            performanceLabel={
-              performanceLabel
-            }
-          />
-        )}
+        {/* PAGE CONTENT */}
 
-        {page ===
-          "Growth Analytics" && (
-          <GrowthAnalyticsPage
-            dateChartData={
-              dateChartData
-            }
-            regionData={
-              regionData
-            }
-            categoryData={
-              categoryData
-            }
-            metric={metric}
-            setMetric={
-              setMetric
-            }
-            insights={insights}
-            recommendations={
-              recommendations
-            }
-          />
-        )}
+        <div className="page-content">
 
-        {page ===
-          "Customers" && (
-          <CustomersPage
-            filteredData={
-              filteredData
-            }
-            activeUsers={
-              activeUsers
-            }
-            totalCustomers={
-              totalCustomers
-            }
-            totalConversions={
-              totalConversions
-            }
-            conversionRate={
-              conversionRate
-            }
-            search={search}
-            setSearch={
-              setSearch
-            }
-          />
-        )}
+          {page === "Dashboard" && (
+            <DashboardPage
+              totalRevenue={totalRevenue}
+              activeUsers={activeUsers}
+              totalCustomers={totalCustomers}
+              totalConversions={totalConversions}
+              conversionRate={conversionRate}
+              bounceRate={bounceRate}
+              revenueChange={revenueChange}
+              usersChange={usersChange}
+              customersChange={customersChange}
+              conversionsChange={conversionsChange}
+              dateChartData={dateChartData}
+              regionData={regionData}
+              categoryData={categoryData}
+              metric={metric}
+              setMetric={setMetric}
+              insights={insights}
+              recommendations={
+                recommendations
+              }
+              performanceScore={
+                performanceScore
+              }
+              performanceLabel={
+                performanceLabel
+              }
+              revenueContribution={
+                revenueContribution
+              }
+              topRegion={topRegion}
+              lowestRegion={lowestRegion}
+              topCategory={topCategory}
+              lowestCategory={
+                lowestCategory
+              }
+            />
+          )}
 
-        {page === "Goals" && (
-          <GoalsPage
-            totalRevenue={
-              totalRevenue
-            }
-            conversionRate={
-              conversionRate
-            }
-            bounceRate={
-              bounceRate
-            }
-          />
-        )}
+          {page === "Growth Analytics" && (
+            <GrowthAnalyticsPage
+              dateChartData={dateChartData}
+              regionData={regionData}
+              categoryData={categoryData}
+              metric={metric}
+              setMetric={setMetric}
+            />
+          )}
 
-        {page ===
-          "Reports" && (
-          <ReportsPage
-            totalRevenue={
-              totalRevenue
-            }
-            activeUsers={
-              activeUsers
-            }
-            totalTraffic={
-              totalTraffic
-            }
-            totalCustomers={
-              totalCustomers
-            }
-            conversionRate={
-              conversionRate
-            }
-            bounceRate={
-              bounceRate
-            }
-            performanceScore={
-              performanceScore
-            }
-            performanceLabel={
-              performanceLabel
-            }
-            regionData={
-              regionData
-            }
-            categoryData={
-              categoryData
-            }
-            insights={insights}
-            recommendations={
-              recommendations
-            }
-            downloadReport={
-              downloadReport
-            }
-            exportCSV={
-              exportCSV
-            }
-          />
-        )}
+          {page === "Customers" && (
+            <CustomersPage
+              filteredData={filteredData}
+              search={search}
+              setSearch={setSearch}
+            />
+          )}
 
-        {page ===
-          "Activity" && (
-          <ActivityPage
-            filteredData={
-              filteredData
-            }
-          />
-        )}
+          {page === "Goals" && (
+            <GoalsPage
+              totalRevenue={
+                totalRevenue
+              }
+              totalCustomers={
+                totalCustomers
+              }
+              conversionRate={
+                conversionRate
+              }
+              performanceScore={
+                performanceScore
+              }
+            />
+          )}
+
+          {page === "Reports" && (
+            <ReportsPage
+              totalRevenue={
+                totalRevenue
+              }
+              activeUsers={
+                activeUsers
+              }
+              totalCustomers={
+                totalCustomers
+              }
+              totalConversions={
+                totalConversions
+              }
+              conversionRate={
+                conversionRate
+              }
+              bounceRate={
+                bounceRate
+              }
+              performanceScore={
+                performanceScore
+              }
+              performanceLabel={
+                performanceLabel
+              }
+              downloadReport={
+                downloadReport
+              }
+              exportCSV={exportCSV}
+            />
+          )}
+
+          {page === "Activity" && (
+            <ActivityPage
+              filteredData={
+                filteredData
+              }
+            />
+          )}
+
+        </div>
 
       </main>
+
     </div>
   );
 }
 
 /* =========================================================
-   DASHBOARD
+   DASHBOARD PAGE
 ========================================================= */
 
 function DashboardPage({
   totalRevenue,
   activeUsers,
-  totalTraffic,
   totalCustomers,
+  totalConversions,
   conversionRate,
   bounceRate,
   revenueChange,
   usersChange,
-  customerChange,
-  conversionChange,
+  customersChange,
+  conversionsChange,
   dateChartData,
+  regionData,
+  categoryData,
   metric,
   setMetric,
   insights,
   recommendations,
-  regionData,
-  categoryData,
-  regionContribution,
   performanceScore,
   performanceLabel,
+  revenueContribution,
+  topRegion,
+  lowestRegion,
+  topCategory,
+  lowestCategory,
 }) {
   return (
-    <div className="page-content">
+    <>
 
-      <section className="welcome-section">
+      {/* KPI CARDS */}
 
-        <div>
-          <p className="eyebrow">
-            BUSINESS PERFORMANCE
-          </p>
-
-          <h2>
-            Executive Growth Overview
-          </h2>
-
-          <p>
-            Monitor business growth,
-            customer activity and
-            conversion performance.
-          </p>
-        </div>
-
-        <div className="health-badge">
-          <Gauge size={16} />
-
-          <span>
-            Health Score
-          </span>
-
-          <strong>
-            {performanceScore}/100
-          </strong>
-        </div>
-
-      </section>
-
-      <section className="stats-grid">
+      <div className="stats-grid">
 
         <StatCard
-          title="Revenue"
+          title="Total Revenue"
           value={formatCurrency(
             totalRevenue
           )}
-          change={
-            revenueChange
+          change={revenueChange}
+          icon={
+            <BarChart3 size={20} />
           }
-          subtitle="vs previous period"
+          tone="purple"
         />
 
         <StatCard
-          title="Users"
+          title="Active Users"
           value={formatNumber(
             activeUsers
           )}
-          change={
-            usersChange
+          change={usersChange}
+          icon={
+            <Users size={20} />
           }
-          subtitle="vs previous period"
-        />
-
-        <StatCard
-          title="Traffic"
-          value={formatNumber(
-            totalTraffic
-          )}
-          change={0}
-          subtitle="selected period"
+          tone="blue"
         />
 
         <StatCard
@@ -1471,162 +1149,182 @@ function DashboardPage({
             totalCustomers
           )}
           change={
-            customerChange
+            customersChange
           }
-          subtitle="vs previous period"
+          icon={
+            <Target size={20} />
+          }
+          tone="teal"
         />
-
-      </section>
-
-      <section className="stats-grid secondary-stats">
 
         <StatCard
           title="Conversions"
           value={formatNumber(
-            dateChartData.reduce(
-              (sum, item) =>
-                sum +
-                item.conversions,
-              0
-            )
+            totalConversions
           )}
           change={
-            conversionChange
+            conversionsChange
           }
-          subtitle="vs previous period"
-        />
-
-        <StatCard
-          title="Conversion Rate"
-          value={formatPercent(
-            conversionRate
-          )}
-          change={
-            conversionChange
+          icon={
+            <TrendingUp size={20} />
           }
-          subtitle="traffic conversion"
+          tone="orange"
         />
 
-        <StatCard
-          title="Bounce Rate"
-          value={formatPercent(
-            bounceRate
-          )}
-          change={0}
-          subtitle="lower is better"
-        />
+      </div>
 
-        <StatCard
-          title="Engagement"
-          value={formatPercent(
-            100 - bounceRate
-          )}
-          change={0}
-          subtitle="estimated engagement"
-        />
+      {/* MAIN TREND */}
 
-      </section>
-
-      <section className="dashboard-grid">
+      <div className="dashboard-grid">
 
         <ChartCard
           title="Growth Trend"
-          subtitle="Performance over selected period"
-          className="large-card"
+          subtitle="Performance over time"
+          large
         >
 
-          <div className="chart-toolbar">
+          <div className="chart-controls">
+
+            <span className="chart-label">
+              Metric
+            </span>
 
             <select
               value={metric}
-              onChange={(event) =>
+              onChange={(e) =>
                 setMetric(
-                  event.target.value
+                  e.target.value
                 )
               }
             >
-              <option>
-                Revenue
-              </option>
-
-              <option>
-                Users
-              </option>
-
-              <option>
-                New Customers
-              </option>
-
-              <option>
-                Conversions
-              </option>
-
-              <option>
-                Traffic
-              </option>
+              <option>Revenue</option>
+              <option>Users</option>
+              <option>Customers</option>
+              <option>Conversions</option>
+              <option>Traffic</option>
             </select>
 
           </div>
 
           <ResponsiveContainer
             width="100%"
-            height={320}
+            height={310}
           >
+
             <AreaChart
-              data={
-                dateChartData
-              }
+              data={dateChartData}
             >
+
+              <defs>
+
+                <linearGradient
+                  id="growthGradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor="var(--accent)"
+                    stopOpacity={0.3}
+                  />
+
+                  <stop
+                    offset="100%"
+                    stopColor="var(--accent)"
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+
+              </defs>
 
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
+                stroke="var(--chart-grid)"
               />
 
               <XAxis
                 dataKey="date"
-                tickFormatter={(
-                  value
-                ) =>
-                  value.slice(
-                    5
-                  )
+                tickFormatter={(value) =>
+                  value.slice(5)
                 }
+                tick={{
+                  fill: "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={{
+                  stroke:
+                    "var(--border)",
+                }}
+                tickLine={false}
               />
 
-              <YAxis />
+              <YAxis
+                tick={{
+                  fill: "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
 
-              <Tooltip />
+              <Tooltip
+                contentStyle={{
+                  background:
+                    "var(--surface)",
+                  border:
+                    "1px solid var(--border)",
+                  borderRadius: "12px",
+                  boxShadow:
+                    "var(--shadow-lg)",
+                  color:
+                    "var(--text)",
+                }}
+                labelStyle={{
+                  color:
+                    "var(--text)",
+                  fontWeight: 700,
+                }}
+                itemStyle={{
+                  color:
+                    "var(--text)",
+                }}
+              />
 
               <Area
                 type="monotone"
-                dataKey={
-                  metric ===
-                  "New Customers"
-                    ? "new_customers"
-                    : metric.toLowerCase()
-                }
-                strokeWidth={2}
-                fillOpacity={0.18}
+                dataKey={getMetricKey(
+                  metric
+                )}
+                stroke="var(--accent)"
+                strokeWidth={3}
+                fill="url(#growthGradient)"
+                dot={false}
+                activeDot={{
+                  r: 5,
+                  fill:
+                    "var(--accent)",
+                }}
               />
 
             </AreaChart>
+
           </ResponsiveContainer>
 
         </ChartCard>
 
         <PerformanceScoreCard
-          score={
-            performanceScore
-          }
-          label={
-            performanceLabel
-          }
+          score={performanceScore}
+          label={performanceLabel}
         />
 
-      </section>
+      </div>
 
-      <section className="dashboard-grid">
+      {/* REGIONAL / CATEGORY */}
+
+      <div className="dashboard-grid">
 
         <ChartCard
           title="Regional Performance"
@@ -1637,6 +1335,7 @@ function DashboardPage({
             width="100%"
             height={280}
           >
+
             <BarChart
               data={regionData}
             >
@@ -1644,43 +1343,137 @@ function DashboardPage({
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
+                stroke="var(--chart-grid)"
               />
 
               <XAxis
                 dataKey="name"
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
               />
 
-              <YAxis />
+              <YAxis
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
 
-              <Tooltip />
+              <Tooltip
+                contentStyle={{
+                  background:
+                    "var(--surface)",
+                  border:
+                    "1px solid var(--border)",
+                  borderRadius: "12px",
+                  boxShadow:
+                    "var(--shadow-lg)",
+                }}
+              />
 
               <Bar
                 dataKey="revenue"
+                fill="var(--accent)"
                 radius={[
-                  6,
-                  6,
+                  7,
+                  7,
                   0,
                   0,
                 ]}
               />
 
             </BarChart>
+
           </ResponsiveContainer>
 
         </ChartCard>
 
+        <ChartCard
+          title="Category Performance"
+          subtitle="Revenue by category"
+        >
+
+          <ResponsiveContainer
+            width="100%"
+            height={280}
+          >
+
+            <BarChart
+              data={categoryData}
+            >
+
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--chart-grid)"
+              />
+
+              <XAxis
+                dataKey="name"
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+
+              <YAxis
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+
+              <Tooltip
+                contentStyle={{
+                  background:
+                    "var(--surface)",
+                  border:
+                    "1px solid var(--border)",
+                  borderRadius: "12px",
+                  boxShadow:
+                    "var(--shadow-lg)",
+                }}
+              />
+
+              <Bar
+                dataKey="revenue"
+                fill="var(--accent-2)"
+                radius={[
+                  7,
+                  7,
+                  0,
+                  0,
+                ]}
+              />
+
+            </BarChart>
+
+          </ResponsiveContainer>
+
+        </ChartCard>
+
+      </div>
+
+      {/* INSIGHTS */}
+
+      <div className="dashboard-grid">
+
         <InsightsPanel
           insights={insights}
-        />
-
-      </section>
-
-      <section className="dashboard-grid">
-
-        <RevenueContribution
-          data={
-            regionContribution
-          }
         />
 
         <RecommendationsPanel
@@ -1689,66 +1482,117 @@ function DashboardPage({
           }
         />
 
-      </section>
+      </div>
 
-      <section className="dashboard-grid">
+      {/* CONTRIBUTION */}
 
-        <ChartCard
-          title="Category Performance"
-          subtitle="Revenue contribution"
-        >
+      <div className="dashboard-grid">
 
-          <ResponsiveContainer
-            width="100%"
-            height={270}
-          >
-            <BarChart
-              data={categoryData}
-              layout="vertical"
-            >
-
-              <CartesianGrid
-                strokeDasharray="3 3"
-                horizontal={false}
-              />
-
-              <XAxis type="number" />
-
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={80}
-              />
-
-              <Tooltip />
-
-              <Bar
-                dataKey="revenue"
-                radius={[
-                  0,
-                  6,
-                  6,
-                  0,
-                ]}
-              />
-
-            </BarChart>
-          </ResponsiveContainer>
-
-        </ChartCard>
-
-        <TopPerformerCard
-          regionData={
-            regionData
-          }
-          categoryData={
-            categoryData
+        <RevenueContribution
+          data={
+            revenueContribution
           }
         />
 
-      </section>
+        <div className="performer-grid">
 
-    </div>
+          <TopPerformerCard
+            title="Top Region"
+            value={
+              topRegion?.name ||
+              "N/A"
+            }
+            amount={
+              topRegion
+                ? formatCurrency(
+                    topRegion.revenue
+                  )
+                : "-"
+            }
+            positive
+          />
+
+          <TopPerformerCard
+            title="Lowest Region"
+            value={
+              lowestRegion?.name ||
+              "N/A"
+            }
+            amount={
+              lowestRegion
+                ? formatCurrency(
+                    lowestRegion.revenue
+                  )
+                : "-"
+            }
+          />
+
+          <TopPerformerCard
+            title="Top Category"
+            value={
+              topCategory?.name ||
+              "N/A"
+            }
+            amount={
+              topCategory
+                ? formatCurrency(
+                    topCategory.revenue
+                  )
+                : "-"
+            }
+            positive
+          />
+
+          <TopPerformerCard
+            title="Lowest Category"
+            value={
+              lowestCategory?.name ||
+              "N/A"
+            }
+            amount={
+              lowestCategory
+                ? formatCurrency(
+                    lowestCategory.revenue
+                  )
+                : "-"
+            }
+          />
+
+        </div>
+
+      </div>
+
+      {/* MINI METRICS */}
+
+      <div className="mini-stats">
+
+        <ReportMetric
+          label="Conversion Rate"
+          value={formatPercent(
+            conversionRate
+          )}
+          tone="purple"
+        />
+
+        <ReportMetric
+          label="Bounce Rate"
+          value={formatPercent(
+            bounceRate
+          )}
+          tone="orange"
+        />
+
+        <ReportMetric
+          label="Engagement Rate"
+          value={formatPercent(
+            engagementRate
+          )}
+          tone="teal"
+        />
+
+      </div>
+
+    </>
   );
 }
 
@@ -1762,128 +1606,121 @@ function GrowthAnalyticsPage({
   categoryData,
   metric,
   setMetric,
-  insights,
-  recommendations,
 }) {
+  const metricKey =
+    getMetricKey(metric);
+
   return (
-    <div className="page-content">
+    <div className="section-stack">
 
-      <section className="section-intro">
+      <ChartCard
+        title="Growth Analytics"
+        subtitle="Detailed trend analysis"
+        large
+      >
 
-        <p className="eyebrow">
-          DEEP DIVE
-        </p>
+        <div className="chart-controls">
 
-        <h2>
-          Growth Analytics
-        </h2>
+          <span className="chart-label">
+            Metric
+          </span>
 
-        <p>
-          Analyze trends and compare
-          performance across business
-          dimensions.
-        </p>
+          <select
+            value={metric}
+            onChange={(e) =>
+              setMetric(
+                e.target.value
+              )
+            }
+          >
+            <option>Revenue</option>
+            <option>Users</option>
+            <option>Customers</option>
+            <option>Conversions</option>
+            <option>Traffic</option>
+          </select>
 
-      </section>
+        </div>
 
-      <div className="analytics-grid">
-
-        <ChartCard
-          title="Growth Trend"
-          subtitle="Time-series analysis"
-          className="wide-card"
+        <ResponsiveContainer
+          width="100%"
+          height={380}
         >
 
-          <div className="chart-toolbar">
-
-            <select
-              value={metric}
-              onChange={(event) =>
-                setMetric(
-                  event.target.value
-                )
-              }
-            >
-              <option>
-                Revenue
-              </option>
-
-              <option>
-                Users
-              </option>
-
-              <option>
-                New Customers
-              </option>
-
-              <option>
-                Conversions
-              </option>
-
-              <option>
-                Traffic
-              </option>
-            </select>
-
-          </div>
-
-          <ResponsiveContainer
-            width="100%"
-            height={380}
+          <LineChart
+            data={dateChartData}
           >
-            <LineChart
-              data={
-                dateChartData
-              }
-            >
 
-              <CartesianGrid
-                strokeDasharray="3 3"
-              />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--chart-grid)"
+            />
 
-              <XAxis
-                dataKey="date"
-                tickFormatter={(
-                  value
-                ) =>
-                  value.slice(
-                    5
-                  )
-                }
-              />
+            <XAxis
+              dataKey="date"
+              tick={{
+                fill:
+                  "var(--muted)",
+                fontSize: 12,
+              }}
+              axisLine={{
+                stroke:
+                  "var(--border)",
+              }}
+              tickLine={false}
+            />
 
-              <YAxis />
+            <YAxis
+              tick={{
+                fill:
+                  "var(--muted)",
+                fontSize: 12,
+              }}
+              axisLine={false}
+              tickLine={false}
+            />
 
-              <Tooltip />
+            <Tooltip
+              contentStyle={{
+                background:
+                  "var(--surface)",
+                border:
+                  "1px solid var(--border)",
+                borderRadius: "12px",
+                boxShadow:
+                  "var(--shadow-lg)",
+              }}
+            />
 
-              <Line
-                type="monotone"
-                dataKey={
-                  metric ===
-                  "New Customers"
-                    ? "new_customers"
-                    : metric.toLowerCase()
-                }
-                strokeWidth={3}
-                dot={{
-                  r: 4,
-                }}
-              />
+            <Line
+              type="monotone"
+              dataKey={metricKey}
+              stroke="var(--accent)"
+              strokeWidth={3}
+              dot={false}
+              activeDot={{
+                r: 5,
+              }}
+            />
 
-            </LineChart>
-          </ResponsiveContainer>
+          </LineChart>
 
-        </ChartCard>
+        </ResponsiveContainer>
+
+      </ChartCard>
+
+      <div className="dashboard-grid">
 
         <ChartCard
-          title="Regional Revenue"
-          subtitle="Compare business regions"
+          title="Region Analysis"
+          subtitle="Regional revenue"
         >
 
           <ResponsiveContainer
             width="100%"
-            height={380}
+            height={300}
           >
+
             <BarChart
               data={regionData}
             >
@@ -1891,18 +1728,43 @@ function GrowthAnalyticsPage({
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
+                stroke="var(--chart-grid)"
               />
 
               <XAxis
                 dataKey="name"
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
               />
 
-              <YAxis />
+              <YAxis
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
 
-              <Tooltip />
+              <Tooltip
+                contentStyle={{
+                  background:
+                    "var(--surface)",
+                  border:
+                    "1px solid var(--border)",
+                  borderRadius: "12px",
+                }}
+              />
 
               <Bar
                 dataKey="revenue"
+                fill="var(--accent)"
                 radius={[
                   7,
                   7,
@@ -1912,82 +1774,80 @@ function GrowthAnalyticsPage({
               />
 
             </BarChart>
+
           </ResponsiveContainer>
 
         </ChartCard>
 
-      </div>
-
-      <div className="analytics-grid">
-
         <ChartCard
-          title="Category Performance"
-          subtitle="Revenue and customer acquisition"
+          title="Category Analysis"
+          subtitle="Category revenue"
         >
 
           <ResponsiveContainer
             width="100%"
-            height={330}
+            height={300}
           >
+
             <BarChart
-              data={
-                categoryData
-              }
+              data={categoryData}
             >
 
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
+                stroke="var(--chart-grid)"
               />
 
               <XAxis
                 dataKey="name"
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
               />
 
-              <YAxis />
+              <YAxis
+                tick={{
+                  fill:
+                    "var(--muted)",
+                  fontSize: 12,
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
 
-              <Tooltip />
-
-              <Legend />
+              <Tooltip
+                contentStyle={{
+                  background:
+                    "var(--surface)",
+                  border:
+                    "1px solid var(--border)",
+                  borderRadius: "12px",
+                }}
+              />
 
               <Bar
                 dataKey="revenue"
-                name="Revenue"
+                fill="var(--accent-2)"
                 radius={[
-                  6,
-                  6,
-                  0,
-                  0,
-                ]}
-              />
-
-              <Bar
-                dataKey="new_customers"
-                name="New Customers"
-                radius={[
-                  6,
-                  6,
+                  7,
+                  7,
                   0,
                   0,
                 ]}
               />
 
             </BarChart>
+
           </ResponsiveContainer>
 
         </ChartCard>
 
-        <RecommendationsPanel
-          recommendations={
-            recommendations
-          }
-        />
-
       </div>
-
-      <InsightsPanel
-        insights={insights}
-      />
 
     </div>
   );
@@ -1999,201 +1859,152 @@ function GrowthAnalyticsPage({
 
 function CustomersPage({
   filteredData,
-  activeUsers,
-  totalCustomers,
-  totalConversions,
-  conversionRate,
   search,
   setSearch,
 }) {
   return (
-    <div className="page-content">
+    <div className="section-stack">
 
-      <section className="section-intro">
+      <ChartCard
+        title="Customer Analytics"
+        subtitle="Search and explore customer-related data"
+      >
 
-        <p className="eyebrow">
-          CUSTOMER ANALYTICS
-        </p>
+        <div className="search-box">
 
-        <h2>
-          Customers & Conversion
-        </h2>
+          <Search size={18} />
 
-        <p>
-          Understand customer
-          acquisition and conversion
-          performance.
-        </p>
-
-      </section>
-
-      <section className="stats-grid">
-
-        <StatCard
-          title="Users"
-          value={formatNumber(
-            activeUsers
-          )}
-          change={0}
-          subtitle="selected dataset"
-        />
-
-        <StatCard
-          title="New Customers"
-          value={formatNumber(
-            totalCustomers
-          )}
-          change={0}
-          subtitle="acquired"
-        />
-
-        <StatCard
-          title="Conversions"
-          value={formatNumber(
-            totalConversions
-          )}
-          change={0}
-          subtitle="completed"
-        />
-
-        <StatCard
-          title="Conversion Rate"
-          value={formatPercent(
-            conversionRate
-          )}
-          change={0}
-          subtitle="traffic to conversion"
-        />
-
-      </section>
-
-      <section className="content-card">
-
-        <div className="card-header">
-
-          <div>
-            <h3>
-              Customer Analytics
-            </h3>
-
-            <p>
-              Detailed performance records
-            </p>
-          </div>
-
-          <div className="search-box">
-
-            <Search size={17} />
-
-            <input
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-              placeholder="Search region, category..."
-            />
-
-          </div>
+          <input
+            type="text"
+            placeholder="Search region or category..."
+            value={search}
+            onChange={(e) =>
+              setSearch(
+                e.target.value
+              )
+            }
+          />
 
         </div>
 
-        <div className="table-wrapper">
+        <div className="table-meta">
 
-          <table>
+          <span>
+            Showing{" "}
+            <strong>
+              {filteredData.length}
+            </strong>{" "}
+            records
+          </span>
+
+        </div>
+
+        <div className="data-table-wrapper">
+
+          <table className="data-table">
 
             <thead>
+
               <tr>
                 <th>Date</th>
                 <th>Region</th>
                 <th>Category</th>
                 <th>Users</th>
-                <th>New Customers</th>
+                <th>Customers</th>
                 <th>Conversions</th>
-                <th>Conversion Rate</th>
               </tr>
+
             </thead>
 
             <tbody>
 
-              {filteredData.map(
-                (item, index) => {
-                  const rate =
-                    item.traffic >
-                    0
-                      ? (item.conversions /
-                          item.traffic) *
-                        100
-                      : 0;
+              {filteredData.length === 0 ? (
 
-                  return (
-                    <tr
-                      key={`${item.date}-${item.region}-${item.category}-${index}`}
-                    >
-                      <td>
-                        {item.date}
-                      </td>
+                <tr>
 
-                      <td>
-                        <span className="table-badge">
-                          <MapPin
-                            size={13}
-                          />
+                  <td
+                    colSpan="6"
+                    className="empty-state"
+                  >
+                    No data found.
+                    Try changing
+                    your filters.
+
+                  </td>
+
+                </tr>
+
+              ) : (
+
+                filteredData
+                  .slice(0, 100)
+                  .map(
+                    (
+                      item,
+                      index
+                    ) => (
+
+                      <tr
+                        key={index}
+                      >
+
+                        <td>
+                          {
+                            item.date
+                          }
+                        </td>
+
+                        <td>
+
+                          <span className="table-icon">
+                            <MapPin
+                              size={14}
+                            />
+                          </span>
+
                           {
                             item.region
                           }
-                        </span>
-                      </td>
 
-                      <td>
-                        <span className="table-badge">
-                          <Package
-                            size={13}
-                          />
+                        </td>
+
+                        <td>
+
+                          <span className="table-icon">
+                            <Package
+                              size={14}
+                            />
+                          </span>
+
                           {
                             item.category
                           }
-                        </span>
-                      </td>
 
-                      <td>
-                        {formatNumber(
-                          item.users
-                        )}
-                      </td>
+                        </td>
 
-                      <td>
-                        {formatNumber(
-                          item.new_customers
-                        )}
-                      </td>
+                        <td>
+                          {formatNumber(
+                            item.users
+                          )}
+                        </td>
 
-                      <td>
-                        {formatNumber(
-                          item.conversions
-                        )}
-                      </td>
+                        <td>
+                          {formatNumber(
+                            item.new_customers
+                          )}
+                        </td>
 
-                      <td>
-                        {formatPercent(
-                          rate
-                        )}
-                      </td>
-                    </tr>
-                  );
-                }
-              )}
+                        <td>
+                          {formatNumber(
+                            item.conversions
+                          )}
+                        </td>
 
-              {!filteredData.length && (
-                <tr>
-                  <td
-                    colSpan="7"
-                    className="empty-state"
-                  >
-                    No records found.
-                  </td>
-                </tr>
+                      </tr>
+
+                    )
+                  )
+
               )}
 
             </tbody>
@@ -2202,7 +2013,7 @@ function CustomersPage({
 
         </div>
 
-      </section>
+      </ChartCard>
 
     </div>
   );
@@ -2214,152 +2025,123 @@ function CustomersPage({
 
 function GoalsPage({
   totalRevenue,
+  totalCustomers,
   conversionRate,
-  bounceRate,
+  performanceScore,
 }) {
   const goals = [
     {
       title: "Revenue Goal",
-      current:
-        totalRevenue,
-      target: 1000000,
-      displayCurrent:
-        formatCurrency(
-          totalRevenue
-        ),
-      displayTarget:
-        "₹10,00,000",
+      current: totalRevenue,
+      target: Math.max(
+        totalRevenue * 1.2,
+        100000
+      ),
+      format: formatCurrency,
+      tone: "purple",
     },
-
     {
-      title: "Conversion Goal",
-      current:
-        conversionRate,
-      target: 30,
-      displayCurrent:
-        formatPercent(
-          conversionRate
-        ),
-      displayTarget:
-        "30%",
+      title: "Customer Growth",
+      current: totalCustomers,
+      target: Math.max(
+        totalCustomers * 1.2,
+        100
+      ),
+      format: formatNumber,
+      tone: "teal",
     },
-
     {
-      title: "Engagement Goal",
-      current:
-        100 - bounceRate,
-      target: 70,
-      displayCurrent:
-        formatPercent(
-          100 - bounceRate
-        ),
-      displayTarget:
-        "70%",
+      title: "Conversion Rate",
+      current: conversionRate,
+      target: 10,
+      format: (value) =>
+        `${value.toFixed(1)}%`,
+      tone: "orange",
+    },
+    {
+      title: "Performance Score",
+      current: performanceScore,
+      target: 100,
+      format: (value) =>
+        `${value.toFixed(0)}/100`,
+      tone: "blue",
     },
   ];
 
   return (
-    <div className="page-content">
+    <div className="goals-grid">
 
-      <section className="section-intro">
+      {goals.map((goal) => {
 
-        <p className="eyebrow">
-          BUSINESS TARGETS
-        </p>
+        const progress = Math.min(
+          100,
+          (goal.current /
+            goal.target) *
+            100
+        );
 
-        <h2>
-          Goals & Targets
-        </h2>
+        return (
+          <div
+            className={`goal-card ${goal.tone}`}
+            key={goal.title}
+          >
 
-        <p>
-          Track progress against
-          key business objectives.
-        </p>
+            <div className="goal-header">
 
-      </section>
+              <div>
 
-      <div className="goals-page">
-
-        {goals.map(
-          (goal) => {
-            const percentage =
-              Math.min(
-                100,
-                Math.max(
-                  0,
-                  (goal.current /
-                    goal.target) *
-                    100
-                )
-              );
-
-            return (
-              <div
-                className="goal-card"
-                key={
-                  goal.title
-                }
-              >
-
-                <div className="goal-icon">
-                  <Target
-                    size={20}
-                  />
-                </div>
+                <span>
+                  {goal.title}
+                </span>
 
                 <h3>
-                  {goal.title}
+                  {goal.format(
+                    goal.current
+                  )}
                 </h3>
 
-                <div className="goal-values">
-
-                  <strong>
-                    {
-                      goal.displayCurrent
-                    }
-                  </strong>
-
-                  <span>
-                    Target{" "}
-                    {
-                      goal.displayTarget
-                    }
-                  </span>
-
-                </div>
-
-                <div className="progress-track">
-
-                  <div
-                    className="progress-bar"
-                    style={{
-                      width: `${percentage}%`,
-                    }}
-                  />
-
-                </div>
-
-                <div className="goal-footer">
-
-                  <span>
-                    {percentage.toFixed(
-                      0
-                    )}
-                    % complete
-                  </span>
-
-                  <CheckCircle2
-                    size={16}
-                  />
-
-                </div>
-
               </div>
-            );
-          }
-        )}
 
-      </div>
+              <div className="goal-icon">
+                <Target
+                  size={20}
+                />
+              </div>
+
+            </div>
+
+            <div className="progress-bar">
+
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${progress}%`,
+                }}
+              />
+
+            </div>
+
+            <div className="goal-footer">
+
+              <span>
+                {progress.toFixed(
+                  0
+                )}
+                % complete
+              </span>
+
+              <span>
+                Target:{" "}
+                {goal.format(
+                  goal.target
+                )}
+              </span>
+
+            </div>
+
+          </div>
+        );
+      })}
 
     </div>
   );
@@ -2372,341 +2154,123 @@ function GoalsPage({
 function ReportsPage({
   totalRevenue,
   activeUsers,
-  totalTraffic,
   totalCustomers,
+  totalConversions,
   conversionRate,
   bounceRate,
   performanceScore,
   performanceLabel,
-  regionData,
-  categoryData,
-  insights,
-  recommendations,
   downloadReport,
   exportCSV,
 }) {
   return (
-    <div className="page-content">
+    <div className="section-stack">
 
-      <section className="report-hero">
+      <div className="report-header">
 
         <div>
 
-          <p className="eyebrow">
-            EXECUTIVE REPORT
-          </p>
+          <div className="section-eyebrow">
+            REPORT CENTER
+          </div>
 
           <h2>
-            Business Performance Report
+            Business Reports
           </h2>
 
           <p>
-            Executive summary generated
-            from the selected dataset.
+            Export filtered analytics
+            and generate a
+            performance report.
           </p>
 
         </div>
 
-        <div className="report-score">
+        <div className="report-actions">
 
-          <Gauge size={20} />
+          <button
+            className="secondary-button"
+            onClick={
+              downloadReport
+            }
+          >
+            <FileText
+              size={17}
+            />
+            Download Report
+          </button>
 
-          <div>
-            <span>
-              Health Score
-            </span>
-
-            <strong>
-              {performanceScore}/100
-            </strong>
-          </div>
-
-          <b>
-            {performanceLabel}
-          </b>
+          <button
+            className="primary-button"
+            onClick={exportCSV}
+          >
+            <Download
+              size={17}
+            />
+            Export CSV
+          </button>
 
         </div>
 
-      </section>
+      </div>
 
-      <section className="report-grid">
+      <div className="report-grid">
 
-        <ReportMetric
-          title="Revenue"
+        <ReportRow
+          label="Total Revenue"
           value={formatCurrency(
             totalRevenue
           )}
         />
 
-        <ReportMetric
-          title="Users"
+        <ReportRow
+          label="Active Users"
           value={formatNumber(
             activeUsers
           )}
         />
 
-        <ReportMetric
-          title="Traffic"
-          value={formatNumber(
-            totalTraffic
-          )}
-        />
-
-        <ReportMetric
-          title="Customers"
+        <ReportRow
+          label="New Customers"
           value={formatNumber(
             totalCustomers
           )}
         />
 
-      </section>
-
-      <section className="dashboard-grid">
-
-        <div className="content-card">
-
-          <div className="card-header">
-
-            <div>
-              <h3>
-                Executive Summary
-              </h3>
-
-              <p>
-                Core business indicators
-              </p>
-            </div>
-
-          </div>
-
-          <div className="summary-list">
-
-            <ReportRow
-              label="Revenue"
-              value={formatCurrency(
-                totalRevenue
-              )}
-            />
-
-            <ReportRow
-              label="Users"
-              value={formatNumber(
-                activeUsers
-              )}
-            />
-
-            <ReportRow
-              label="Traffic"
-              value={formatNumber(
-                totalTraffic
-              )}
-            />
-
-            <ReportRow
-              label="Conversion Rate"
-              value={formatPercent(
-                conversionRate
-              )}
-            />
-
-            <ReportRow
-              label="Bounce Rate"
-              value={formatPercent(
-                bounceRate
-              )}
-            />
-
-          </div>
-
-        </div>
-
-        <div className="content-card">
-
-          <div className="card-header">
-
-            <div>
-              <h3>
-                Report Actions
-              </h3>
-
-              <p>
-                Export your analysis
-              </p>
-            </div>
-
-          </div>
-
-          <div className="report-action-box">
-
-            <button
-              className="primary-button"
-              onClick={
-                downloadReport
-              }
-            >
-              <FileText
-                size={17}
-              />
-              Download Report
-            </button>
-
-            <button
-              className="secondary-button"
-              onClick={
-                exportCSV
-              }
-            >
-              <Download
-                size={17}
-              />
-              Export CSV
-            </button>
-
-          </div>
-
-        </div>
-
-      </section>
-
-      <div className="dashboard-grid">
-
-        <InsightsPanel
-          insights={insights}
+        <ReportRow
+          label="Conversions"
+          value={formatNumber(
+            totalConversions
+          )}
         />
 
-        <RecommendationsPanel
-          recommendations={
-            recommendations
+        <ReportRow
+          label="Conversion Rate"
+          value={formatPercent(
+            conversionRate
+          )}
+        />
+
+        <ReportRow
+          label="Bounce Rate"
+          value={formatPercent(
+            bounceRate
+          )}
+        />
+
+        <ReportRow
+          label="Performance Score"
+          value={`${performanceScore.toFixed(
+            1
+          )}/100`}
+        />
+
+        <ReportRow
+          label="Performance Status"
+          value={
+            performanceLabel
           }
         />
-
-      </div>
-
-      <div className="dashboard-grid">
-
-        <div className="content-card">
-
-          <div className="card-header">
-
-            <div>
-              <h3>
-                Top Regions
-              </h3>
-
-              <p>
-                Ranked by revenue
-              </p>
-            </div>
-
-          </div>
-
-          <div className="ranking-list">
-
-            {regionData.map(
-              (region, index) => (
-                <div
-                  className="ranking-item"
-                  key={
-                    region.name
-                  }
-                >
-
-                  <div className="rank-number">
-                    {index + 1}
-                  </div>
-
-                  <div className="ranking-info">
-
-                    <strong>
-                      {
-                        region.name
-                      }
-                    </strong>
-
-                    <span>
-                      {formatNumber(
-                        region.users
-                      )}{" "}
-                      users
-                    </span>
-
-                  </div>
-
-                  <strong>
-                    {formatCurrency(
-                      region.revenue
-                    )}
-                  </strong>
-
-                </div>
-              )
-            )}
-
-          </div>
-
-        </div>
-
-        <div className="content-card">
-
-          <div className="card-header">
-
-            <div>
-              <h3>
-                Top Categories
-              </h3>
-
-              <p>
-                Ranked by revenue
-              </p>
-            </div>
-
-          </div>
-
-          <div className="ranking-list">
-
-            {categoryData.map(
-              (category, index) => (
-                <div
-                  className="ranking-item"
-                  key={
-                    category.name
-                  }
-                >
-
-                  <div className="rank-number">
-                    {index + 1}
-                  </div>
-
-                  <div className="ranking-info">
-
-                    <strong>
-                      {
-                        category.name
-                      }
-                    </strong>
-
-                    <span>
-                      {formatNumber(
-                        category.new_customers
-                      )}{" "}
-                      new customers
-                    </span>
-
-                  </div>
-
-                  <strong>
-                    {formatCurrency(
-                      category.revenue
-                    )}
-                  </strong>
-
-                </div>
-              )
-            )}
-
-          </div>
-
-        </div>
 
       </div>
 
@@ -2721,86 +2285,195 @@ function ReportsPage({
 function ActivityPage({
   filteredData,
 }) {
-  const recent =
-    [...filteredData]
-      .sort(
-        (a, b) =>
-          new Date(b.date) -
-          new Date(a.date)
-      )
-      .slice(0, 8);
+  const recentData = filteredData
+    .slice()
+    .reverse()
+    .slice(0, 10);
 
   return (
-    <div className="page-content">
+    <div className="section-stack">
 
-      <section className="section-intro">
+      <ChartCard
+        title="Recent Activity"
+        subtitle="Latest activity from the selected dataset"
+      >
 
-        <p className="eyebrow">
-          DATA ACTIVITY
-        </p>
+        <div className="activity-list">
 
-        <h2>
-          Recent Activity
-        </h2>
+          {recentData.length === 0 ? (
 
-        <p>
-          Recent business performance
-          records from the selected
-          dataset.
-        </p>
-
-      </section>
-
-      <div className="timeline">
-
-        {recent.map(
-          (item, index) => (
-            <div
-              className="timeline-item"
-              key={`${item.date}-${item.region}-${index}`}
-            >
-
-              <div className="timeline-dot">
-                <Activity
-                  size={15}
-                />
-              </div>
-
-              <div className="timeline-content">
-
-                <div>
-
-                  <strong>
-                    {
-                      item.category
-                    }{" "}
-                    performance
-                  </strong>
-
-                  <span>
-                    {
-                      item.region
-                    }{" "}
-                    ·{" "}
-                    {
-                      item.date
-                    }
-                  </span>
-
-                </div>
-
-                <div className="timeline-value">
-                  {formatCurrency(
-                    item.revenue
-                  )}
-                </div>
-
-              </div>
-
+            <div className="empty-state">
+              No activity available
+              for the selected
+              filters.
             </div>
-          )
-        )}
 
+          ) : (
+
+            recentData.map(
+              (
+                item,
+                index
+              ) => (
+
+                <div
+                  className="activity-item"
+                  key={index}
+                >
+
+                  <div className="activity-icon">
+                    <Activity
+                      size={18}
+                    />
+                  </div>
+
+                  <div className="activity-content">
+
+                    <strong>
+                      {
+                        item.category
+                      }{" "}
+                      activity
+                    </strong>
+
+                    <span>
+                      {
+                        item.region
+                      }{" "}
+                      ·{" "}
+                      {
+                        item.date
+                      }
+                    </span>
+
+                  </div>
+
+                  <div className="activity-value">
+
+                    {formatCurrency(
+                      item.revenue
+                    )}
+
+                  </div>
+
+                </div>
+
+              )
+            )
+
+          )}
+
+        </div>
+
+      </ChartCard>
+
+    </div>
+  );
+}
+
+/* =========================================================
+   STAT CARD
+========================================================= */
+
+function StatCard({
+  title,
+  value,
+  change,
+  icon,
+  tone = "purple",
+}) {
+  const positive = change >= 0;
+
+  return (
+    <div className="stat-card">
+
+      <div className="stat-top">
+
+        <div
+          className={`stat-icon ${tone}`}
+        >
+          {icon}
+        </div>
+
+        <span
+          className={
+            positive
+              ? "change positive"
+              : "change negative"
+          }
+        >
+
+          {positive ? (
+            <ArrowUpRight
+              size={14}
+            />
+          ) : (
+            <ArrowDownRight
+              size={14}
+            />
+          )}
+
+          {Math.abs(change).toFixed(
+            1
+          )}
+          %
+
+        </span>
+
+      </div>
+
+      <span className="stat-label">
+        {title}
+      </span>
+
+      <h2>{value}</h2>
+
+      <span className="stat-description">
+        Compared with previous
+        period
+      </span>
+
+    </div>
+  );
+}
+
+/* =========================================================
+   CHART CARD
+========================================================= */
+
+function ChartCard({
+  title,
+  subtitle,
+  children,
+  large = false,
+}) {
+  return (
+    <div
+      className={`chart-card ${
+        large ? "large" : ""
+      }`}
+    >
+
+      <div className="card-header">
+
+        <div>
+
+          <h3>{title}</h3>
+
+          <p>{subtitle}</p>
+
+        </div>
+
+        <div className="card-header-icon">
+          <ChevronRight
+            size={17}
+          />
+        </div>
+
+      </div>
+
+      <div className="chart-content">
+        {children}
       </div>
 
     </div>
@@ -2808,136 +2481,34 @@ function ActivityPage({
 }
 
 /* =========================================================
-   COMPONENTS
+   INSIGHTS
 ========================================================= */
 
-function StatCard({
-  title,
-  value,
-  change,
-  subtitle,
-}) {
-  const positive =
-    change >= 0;
-
-  return (
-    <div className="stat-card">
-
-      <div className="stat-top">
-
-        <span>
-          {title}
-        </span>
-
-        <div
-          className={`trend-icon ${
-            positive
-              ? "positive"
-              : "negative"
-          }`}
-        >
-          {positive ? (
-            <ArrowUpRight
-              size={17}
-            />
-          ) : (
-            <ArrowDownRight
-              size={17}
-            />
-          )}
-        </div>
-
-      </div>
-
-      <strong>
-        {value}
-      </strong>
-
-      <div className="stat-bottom">
-
-        <span
-          className={
-            positive
-              ? "change-positive"
-              : "change-negative"
-          }
-        >
-          {change >= 0
-            ? "+"
-            : ""}
-          {change.toFixed(1)}%
-        </span>
-
-        <span>
-          {subtitle}
-        </span>
-
-      </div>
-
-    </div>
-  );
-}
-
-function ChartCard({
-  title,
-  subtitle,
-  children,
-  className = "",
+function InsightsPanel({
+  insights,
 }) {
   return (
-    <div
-      className={`content-card chart-card ${className}`}
-    >
+    <div className="insight-card">
 
       <div className="card-header">
 
         <div>
 
           <h3>
-            {title}
+            Key Insights
           </h3>
 
           <p>
-            {subtitle}
+            Important observations
+            from your data
           </p>
 
         </div>
 
-      </div>
-
-      {children}
-
-    </div>
-  );
-}
-
-function InsightsPanel({
-  insights,
-}) {
-  return (
-    <div className="content-card insights-card">
-
-      <div className="card-header">
-
-        <div>
-
-          <div className="insight-title">
-
-            <Lightbulb
-              size={18}
-            />
-
-            <h3>
-              Business Insights
-            </h3>
-
-          </div>
-
-          <p>
-            Automatically generated
-            from the selected data.
-          </p>
-
+        <div className="header-colored-icon purple">
+          <Lightbulb
+            size={18}
+          />
         </div>
 
       </div>
@@ -2945,7 +2516,11 @@ function InsightsPanel({
       <div className="insight-list">
 
         {insights.map(
-          (insight, index) => (
+          (
+            insight,
+            index
+          ) => (
+
             <div
               className="insight-item"
               key={index}
@@ -2960,6 +2535,7 @@ function InsightsPanel({
               </p>
 
             </div>
+
           )
         )}
 
@@ -2969,56 +2545,74 @@ function InsightsPanel({
   );
 }
 
+/* =========================================================
+   RECOMMENDATIONS
+========================================================= */
+
 function RecommendationsPanel({
   recommendations,
 }) {
   return (
-    <div className="content-card recommendations-card">
+    <div className="insight-card">
 
       <div className="card-header">
 
         <div>
 
-          <div className="insight-title">
-
-            <Lightbulb
-              size={18}
-            />
-
-            <h3>
-              Business Recommendations
-            </h3>
-
-          </div>
+          <h3>
+            Recommendations
+          </h3>
 
           <p>
             Suggested actions based
-            on current performance.
+            on performance
           </p>
 
+        </div>
+
+        <div className="header-colored-icon teal">
+          <Gauge
+            size={18}
+          />
         </div>
 
       </div>
 
       <div className="recommendation-list">
 
-        {recommendations.map(
-          (item, index) => (
-            <div
-              className="recommendation-item"
-              key={index}
-            >
+        {recommendations.length === 0 ? (
 
-              <div className="recommendation-icon">
-                {index + 1}
+          <div className="empty-state">
+            No recommendations
+            available.
+          </div>
+
+        ) : (
+
+          recommendations.map(
+            (
+              item,
+              index
+            ) => (
+
+              <div
+                className="recommendation-item"
+                key={index}
+              >
+
+                <CheckCircle2
+                  size={18}
+                />
+
+                <p>
+                  {item}
+                </p>
+
               </div>
 
-              <p>
-                {item}
-              </p>
-
-            </div>
+            )
           )
+
         )}
 
       </div>
@@ -3027,60 +2621,90 @@ function RecommendationsPanel({
   );
 }
 
+/* =========================================================
+   PERFORMANCE SCORE
+========================================================= */
+
 function PerformanceScoreCard({
   score,
   label,
 }) {
+  const statusClass =
+    label
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        "-"
+      );
+
   return (
-    <div className="content-card score-card">
+    <div className="performance-card">
 
       <div className="card-header">
 
         <div>
+
           <h3>
-            Business Health
+            Performance Score
           </h3>
 
           <p>
-            Overall performance score
+            Overall business health
           </p>
+
         </div>
 
-        <Gauge size={20} />
+        <div className="header-colored-icon blue">
+          <Gauge
+            size={18}
+          />
+        </div>
 
       </div>
 
-      <div className="score-main">
+      <div className="score-wrapper">
 
-        <div
-          className="score-circle"
-          style={{
-            "--score":
-              `${score * 3.6}deg`,
-          }}
-        >
+        <div className="score-circle">
+
           <strong>
-            {score}
+            {score.toFixed(0)}
           </strong>
 
           <span>
-            / 100
+            /100
           </span>
-        </div>
-
-        <div>
-
-          <strong className="score-label">
-            {label}
-          </strong>
-
-          <p>
-            Calculated using revenue
-            growth, customer growth,
-            conversion and engagement.
-          </p>
 
         </div>
+
+      </div>
+
+      <div
+        className={`score-status ${statusClass}`}
+      >
+        {label}
+      </div>
+
+      <div className="score-description">
+
+        <span>
+          <i></i>
+          Revenue
+        </span>
+
+        <span>
+          <i></i>
+          Customers
+        </span>
+
+        <span>
+          <i></i>
+          Conversion
+        </span>
+
+        <span>
+          <i></i>
+          Engagement
+        </span>
 
       </div>
 
@@ -3088,15 +2712,20 @@ function PerformanceScoreCard({
   );
 }
 
+/* =========================================================
+   REVENUE CONTRIBUTION
+========================================================= */
+
 function RevenueContribution({
   data,
 }) {
   return (
-    <div className="content-card">
+    <div className="chart-card">
 
       <div className="card-header">
 
         <div>
+
           <h3>
             Revenue Contribution
           </h3>
@@ -3105,155 +2734,129 @@ function RevenueContribution({
             Regional share of total
             revenue
           </p>
+
+        </div>
+
+        <div className="header-colored-icon purple">
+          <Globe
+            size={18}
+          />
         </div>
 
       </div>
 
       <div className="contribution-list">
 
-        {data.map((item) => (
-          <div
-            className="contribution-item"
-            key={item.name}
-          >
+        {data.map(
+          (item) => (
 
-            <div className="contribution-top">
+            <div
+              className="contribution-item"
+              key={item.name}
+            >
 
-              <strong>
-                {item.name}
-              </strong>
+              <div className="contribution-header">
 
-              <span>
-                {formatPercent(
-                  item.contribution
+                <span>
+                  {item.name}
+                </span>
+
+                <strong>
+                  {item.percentage.toFixed(
+                    1
+                  )}
+                  %
+                </strong>
+
+              </div>
+
+              <div className="progress-bar">
+
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: `${item.percentage}%`,
+                  }}
+                />
+
+              </div>
+
+              <span className="contribution-value">
+                {formatCurrency(
+                  item.revenue
                 )}
               </span>
 
             </div>
 
-            <div className="contribution-track">
-
-              <div
-                className="contribution-bar"
-                style={{
-                  width: `${item.contribution}%`,
-                }}
-              />
-
-            </div>
-
-            <small>
-              {formatCurrency(
-                item.revenue
-              )}
-            </small>
-
-          </div>
-        ))}
+          )
+        )}
 
       </div>
 
     </div>
   );
 }
+
+/* =========================================================
+   TOP PERFORMER
+========================================================= */
 
 function TopPerformerCard({
-  regionData,
-  categoryData,
-}) {
-  const topRegion =
-    regionData[0];
-
-  const topCategory =
-    categoryData[0];
-
-  return (
-    <div className="content-card">
-
-      <div className="card-header">
-
-        <div>
-          <h3>
-            Performance Leaders
-          </h3>
-
-          <p>
-            Strongest areas in the
-            selected period
-          </p>
-        </div>
-
-      </div>
-
-      <div className="leader-card">
-
-        <div className="leader-icon">
-          <Globe size={19} />
-        </div>
-
-        <div>
-
-          <span>
-            Top Region
-          </span>
-
-          <strong>
-            {topRegion?.name ||
-              "N/A"}
-          </strong>
-
-          <small>
-            {formatCurrency(
-              topRegion?.revenue ||
-                0
-            )}
-          </small>
-
-        </div>
-
-      </div>
-
-      <div className="leader-card">
-
-        <div className="leader-icon">
-          <Package size={19} />
-        </div>
-
-        <div>
-
-          <span>
-            Top Category
-          </span>
-
-          <strong>
-            {topCategory?.name ||
-              "N/A"}
-          </strong>
-
-          <small>
-            {formatCurrency(
-              topCategory?.revenue ||
-                0
-            )}
-          </small>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
-
-function ReportMetric({
   title,
   value,
+  amount,
+  positive = false,
 }) {
   return (
-    <div className="report-metric">
+    <div className="performer-card">
 
       <span>
         {title}
+      </span>
+
+      <div className="performer-title">
+
+        <strong>
+          {value}
+        </strong>
+
+        {positive ? (
+          <ArrowUpRight
+            size={17}
+          />
+        ) : (
+          <ArrowDownRight
+            size={17}
+          />
+        )}
+
+      </div>
+
+      <p>
+        {amount}
+      </p>
+
+    </div>
+  );
+}
+
+/* =========================================================
+   REPORT METRIC
+========================================================= */
+
+function ReportMetric({
+  label,
+  value,
+  tone = "purple",
+}) {
+  return (
+    <div
+      className={`report-metric ${tone}`}
+    >
+
+      <span>
+        {label}
       </span>
 
       <strong>
@@ -3263,6 +2866,10 @@ function ReportMetric({
     </div>
   );
 }
+
+/* =========================================================
+   REPORT ROW
+========================================================= */
 
 function ReportRow({
   label,
@@ -3282,5 +2889,3 @@ function ReportRow({
     </div>
   );
 }
-
-export default App;
